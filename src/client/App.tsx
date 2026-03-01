@@ -15,7 +15,7 @@ const SPECIALIZATIONS = [
 
 // ─── Avatar Emojis ───
 const agentAvatars: Record<string, string> = {
-  'ceo': '👔', 'coo': '🎯', 'cto': '⚡', 'cpo': '🔮',
+  'ceo': '👔', 'coo': '🎯', 'cto': '⚡', 'cpo': '🔮', 'jira': '📋',
   'linus': '⚙️', 'pixel': '🎨', 'ada': '🔒', 'terraform': '🏗️',
   'sentinel': '🛡️', 'turing': '🧠', 'piper': '📊', 'vector': '🔍',
   'nova': '⭐',
@@ -25,6 +25,7 @@ const agentAvatars: Record<string, string> = {
 function getModelBadge(model?: string): { label: string; color: string; bg: string; border: string } | null {
   if (!model) return null;
   if (model.includes('opus')) return { label: 'Opus 4.6', color: '#e8a030', bg: '#3a2a1a', border: '#5a4a2a' };
+  if (model === 'claude-sonnet-4.6') return { label: 'Sonnet 4.6', color: '#60a5fa', bg: '#1a2a3a', border: '#2a3a5a' };
   if (model.includes('sonnet')) return { label: 'Sonnet 4.5', color: '#60a5fa', bg: '#1a2a3a', border: '#2a3a5a' };
   if (model.includes('kimi')) return { label: 'Kimi K2.5', color: '#14b8a6', bg: '#1a3a2a', border: '#2a5a3a' };
   if (model.includes('deepseek')) return { label: 'DeepSeek V3', color: '#a78bfa', bg: '#2a1a3a', border: '#3a2a5a' };
@@ -130,6 +131,8 @@ function OrgChartView({ agents }: { agents: Agent[]; teams: Team[] }) {
   const cto = agents.find(a => a.agentId === 'cto');
   const cpo = agents.find(a => a.agentId === 'cpo');
 
+  const jira = agents.find(a => a.agentId === 'jira');
+
   // CTO direct reports grouped into teams
   const linus = byId['linus'], ada = byId['ada'], pixel = byId['pixel'], terraform = byId['terraform'];
   const sentinel = byId['sentinel'], turing = byId['turing'], piper = byId['piper'], vector = byId['vector'];
@@ -186,6 +189,29 @@ function OrgChartView({ agents }: { agents: Agent[]; teams: Team[] }) {
           {cto && <ExecCard agent={cto} />}
           {cpo && <ExecCard agent={cpo} />}
         </div>
+
+        {/* Scrum Master — Jira */}
+        {jira && (
+          <div className="flex flex-col items-start mb-6" style={{ width: '50%' }}>
+            <div className="flex flex-col items-center w-full">
+              <div style={{ width: 2, height: 24, background: '#4a5a3a' }} />
+            </div>
+            <div className="rounded-2xl px-5 py-4 flex items-center gap-4 w-full"
+              style={{ background: 'linear-gradient(135deg, #1a2a3a 0%, #1e1e2a 100%)', border: '1px solid #2a3a5a' }}>
+              <Avatar agentId="jira" size={52} />
+              <div>
+                <div className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: '#60a5fa' }}>Scrum Master</div>
+                <div className="text-[20px] font-bold text-white leading-tight">{jira.name}</div>
+                <div className="text-[12px] mt-0.5" style={{ color: '#8a9aaa' }}>{jira.role}</div>
+                <div className="mt-1"><ModelBadge model={jira.model} /></div>
+              </div>
+            </div>
+            <div className="flex flex-col items-center w-full">
+              <div style={{ width: 2, height: 24, background: '#4a5a3a' }} />
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#60a5fa', marginTop: -1 }} />
+            </div>
+          </div>
+        )}
 
         {/* Department Grid — 2 columns: CTO teams | CPO teams */}
         <div className="grid grid-cols-2 gap-5">

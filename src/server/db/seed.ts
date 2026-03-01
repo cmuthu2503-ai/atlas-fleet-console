@@ -84,19 +84,26 @@ db.insert(agents).values([
   { id: cpoId, agentId: 'cpo', name: 'Sundar Pichai', role: 'CPO', persona: 'Product strategist', teamId: leadershipTeamId, status: 'online', specialization: 'Product', model: 'claude-opus', capabilities: '["product-strategy","user-experience"]', parentAgentId: cooId, createdAt: now, updatedAt: now },
 ]).run();
 
+// Scrum Master
+const jiraId = uuid();
+
+db.insert(agents).values([
+  { id: jiraId, agentId: 'jira', name: 'Jira', role: 'Program Manager & Scrum Master', persona: 'Relentless coordinator and process enforcer', teamId: ctoTeamId, status: 'online', specialization: 'Program Management', model: 'claude-sonnet-4.6', capabilities: '["coordination","sprint-planning","task-tracking","process-enforcement"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+]).run();
+
 // CTO Team agents
 const linusId = uuid(), pixelId = uuid(), adaId = uuid(), terraformId = uuid();
 const sentinelId = uuid(), turingId = uuid(), piperId = uuid(), vectorId = uuid();
 
 db.insert(agents).values([
-  { id: linusId, agentId: 'linus', name: 'Linus', role: 'Backend Engineer', persona: 'Methodical backend specialist', teamId: ctoTeamId, status: 'online', specialization: 'Backend', model: 'kimi-k2.5', capabilities: '["api-design","databases","node.js","typescript"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: pixelId, agentId: 'pixel', name: 'Pixel', role: 'Frontend Engineer', persona: 'Creative UI builder', teamId: ctoTeamId, status: 'online', specialization: 'Frontend', model: 'kimi-k2.5', capabilities: '["react","tailwind","ui-design"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: adaId, agentId: 'ada', name: 'Ada', role: 'Security Engineer', persona: 'Security-first mindset', teamId: ctoTeamId, status: 'idle', specialization: 'Security', model: 'kimi-k2.5', capabilities: '["security-audit","penetration-testing","compliance"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: terraformId, agentId: 'terraform', name: 'Terraform', role: 'DevOps Engineer', persona: 'Infrastructure automation expert', teamId: ctoTeamId, status: 'idle', specialization: 'DevOps', model: 'deepseek-v3', capabilities: '["ci-cd","docker","kubernetes","terraform"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: sentinelId, agentId: 'sentinel', name: 'Sentinel', role: 'Quality Lead', persona: 'Quality guardian', teamId: ctoTeamId, status: 'idle', specialization: 'QA', model: 'kimi-k2.5', capabilities: '["testing","automation","quality-assurance"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: turingId, agentId: 'turing', name: 'Turing', role: 'AI/ML Engineer', persona: 'AI research enthusiast', teamId: ctoTeamId, status: 'idle', specialization: 'AI/ML', model: 'kimi-k2.5', capabilities: '["machine-learning","nlp","model-training"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: piperId, agentId: 'piper', name: 'Piper', role: 'Data Engineer', persona: 'Data pipeline architect', teamId: ctoTeamId, status: 'idle', specialization: 'Data Engineering', model: 'deepseek-v3', capabilities: '["etl","data-pipelines","analytics"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
-  { id: vectorId, agentId: 'vector', name: 'Vector', role: 'Retrieval Engineer', persona: 'Search and retrieval specialist', teamId: ctoTeamId, status: 'idle', specialization: 'Retrieval', model: 'kimi-k2.5', capabilities: '["vector-search","rag","embeddings"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: linusId, agentId: 'linus', name: 'Linus', role: 'Backend Engineer', persona: 'Methodical backend specialist', teamId: ctoTeamId, status: 'online', specialization: 'Backend', model: 'kimi-k2.5', capabilities: '["api-design","databases","node.js","typescript"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: pixelId, agentId: 'pixel', name: 'Pixel', role: 'Frontend Engineer', persona: 'Creative UI builder', teamId: ctoTeamId, status: 'online', specialization: 'Frontend', model: 'kimi-k2.5', capabilities: '["react","tailwind","ui-design"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: adaId, agentId: 'ada', name: 'Ada', role: 'Security Engineer', persona: 'Security-first mindset', teamId: ctoTeamId, status: 'idle', specialization: 'Security', model: 'kimi-k2.5', capabilities: '["security-audit","penetration-testing","compliance"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: terraformId, agentId: 'terraform', name: 'Terraform', role: 'DevOps Engineer', persona: 'Infrastructure automation expert', teamId: ctoTeamId, status: 'idle', specialization: 'DevOps', model: 'deepseek-v3', capabilities: '["ci-cd","docker","kubernetes","terraform"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: sentinelId, agentId: 'sentinel', name: 'Sentinel', role: 'Quality Lead', persona: 'Quality guardian', teamId: ctoTeamId, status: 'idle', specialization: 'QA', model: 'kimi-k2.5', capabilities: '["testing","automation","quality-assurance"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: turingId, agentId: 'turing', name: 'Turing', role: 'AI/ML Engineer', persona: 'AI research enthusiast', teamId: ctoTeamId, status: 'idle', specialization: 'AI/ML', model: 'kimi-k2.5', capabilities: '["machine-learning","nlp","model-training"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: piperId, agentId: 'piper', name: 'Piper', role: 'Data Engineer', persona: 'Data pipeline architect', teamId: ctoTeamId, status: 'idle', specialization: 'Data Engineering', model: 'deepseek-v3', capabilities: '["etl","data-pipelines","analytics"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: vectorId, agentId: 'vector', name: 'Vector', role: 'Retrieval Engineer', persona: 'Search and retrieval specialist', teamId: ctoTeamId, status: 'idle', specialization: 'Retrieval', model: 'kimi-k2.5', capabilities: '["vector-search","rag","embeddings"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
 ]).run();
 
 // CPO Team agent
@@ -123,4 +130,4 @@ db.insert(delegationSteps).values([
   { id: uuid(), taskId: task3Id, fromAgentId: ctoId, toAgentId: adaId, action: 'assign', message: 'Audit API endpoints after T-001 completion', status: 'pending', createdAt: now },
 ]).run();
 
-console.log('✅ Seed complete: 3 teams, 13 agents, 3 tasks, 5 delegation steps');
+console.log('✅ Seed complete: 3 teams, 14 agents, 3 tasks, 5 delegation steps');
