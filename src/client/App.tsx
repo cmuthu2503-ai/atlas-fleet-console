@@ -26,7 +26,8 @@ function getModelBadge(model?: string): { label: string; color: string; bg: stri
   if (!model) return null;
   if (model.includes('opus')) return { label: 'Opus 4.6', color: '#e8a030', bg: '#3a2a1a', border: '#5a4a2a' };
   if (model.includes('sonnet')) return { label: 'Sonnet 4.5', color: '#60a5fa', bg: '#1a2a3a', border: '#2a3a5a' };
-  if (model.includes('kimi') || model.includes('deepseek')) return { label: 'Codex 5.3', color: '#14b8a6', bg: '#1a3a2a', border: '#2a5a3a' };
+  if (model.includes('kimi')) return { label: 'Kimi K2.5', color: '#14b8a6', bg: '#1a3a2a', border: '#2a5a3a' };
+  if (model.includes('deepseek')) return { label: 'DeepSeek V3', color: '#a78bfa', bg: '#2a1a3a', border: '#3a2a5a' };
   return { label: model, color: '#999', bg: '#2a2a2a', border: '#3a3a3a' };
 }
 
@@ -61,47 +62,105 @@ function Avatar({ agentId, size = 48 }: { agentId: string; size?: number }) {
   );
 }
 
+// ─── Collapsible Team Section ───
+function TeamSection({ name, description, agents: teamAgents, defaultExpanded = true }: {
+  name: string; description: string; agents: Agent[]; defaultExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return (
+    <div className="rounded-xl p-5 mb-4" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
+      <div className="flex items-center justify-between mb-1 cursor-pointer select-none" onClick={() => setExpanded(e => !e)}>
+        <span className="text-[16px] font-bold text-white">{name}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px]" style={{ color: '#777' }}>{teamAgents.length} agent{teamAgents.length !== 1 ? 's' : ''}</span>
+          <span style={{ color: '#c4a04a', fontSize: 12 }}>{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      <p className="text-[12px] mb-4" style={{ color: '#888' }}>{description}</p>
+      {expanded && (
+        <div className="space-y-3">
+          {teamAgents.map(agent => (
+            <div key={agent.id} className="rounded-xl p-4" style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }}>
+              <div className="flex items-center gap-3 mb-1">
+                <Avatar agentId={agent.agentId} size={32} />
+                <span className="text-[15px] font-semibold text-white">{agent.name}</span>
+              </div>
+              <div className="text-[12px] mb-2" style={{ color: '#999' }}>{agent.role}</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(agent.status === 'online' || agent.status === 'idle' || agent.status === 'busy') && <ActiveBadge />}
+                <ModelBadge model={agent.model} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Executive Card ───
+function ExecCard({ agent }: { agent: Agent }) {
+  return (
+    <div className="rounded-xl p-5 flex items-start gap-4" style={{ background: '#1e1e24', border: '1px solid #8B7332' }}>
+      <Avatar agentId={agent.agentId} size={56} />
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[18px] font-bold text-white">{agent.name}</span>
+          <ModelBadge model={agent.model} />
+        </div>
+        <div className="text-[14px] font-semibold mt-0.5" style={{ color: '#D4A030' }}>{agent.role}</div>
+        <div className="text-[12px] mt-1 leading-relaxed" style={{ color: '#999' }}>
+          {agent.persona || `${agent.specialization} leadership and strategic direction`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Org Chart View (Reference Match) ───
-function OrgChartView({ agents, teams }: { agents: Agent[]; teams: Team[] }) {
-  const agentMap = useMemo(() => {
+function OrgChartView({ agents }: { agents: Agent[]; teams: Team[] }) {
+  const byId = useMemo(() => {
     const m: Record<string, Agent> = {};
     agents.forEach(a => { m[a.agentId] = a; m[a.id] = a; });
     return m;
   }, [agents]);
 
+  const ceo = agents.find(a => a.agentId === 'ceo');
   const coo = agents.find(a => a.agentId === 'coo');
-  const executives = agents.filter(a => a.parentAgentId && agentMap[a.parentAgentId]?.agentId === 'coo');
+  const cto = agents.find(a => a.agentId === 'cto');
+  const cpo = agents.find(a => a.agentId === 'cpo');
 
-  // Group agents by team, excluding leadership
-  const teamAgents = useMemo(() => {
-    const grouped: Record<string, { team: Team; agents: Agent[] }> = {};
-    teams.forEach(t => {
-      if (t.name === 'Leadership') return;
-      const ta = agents.filter(a => a.teamId === t.id && !['ceo', 'coo', 'cto', 'cpo'].includes(a.agentId));
-      if (ta.length > 0) grouped[t.id] = { team: t, agents: ta };
-    });
-    return grouped;
-  }, [agents, teams]);
+  // CTO direct reports grouped into teams
+  const linus = byId['linus'], ada = byId['ada'], pixel = byId['pixel'], terraform = byId['terraform'];
+  const sentinel = byId['sentinel'], turing = byId['turing'], piper = byId['piper'], vector = byId['vector'];
+  const nova = byId['nova'];
 
-  // Map executives to their teams
-  const execTeams = useMemo(() => {
-    return executives.map(exec => {
-      const children = agents.filter(a => a.parentAgentId === exec.id);
-      const teamId = children[0]?.teamId;
-      const team = teams.find(t => t.id === teamId);
-      return { exec, team, agents: children };
-    });
-  }, [executives, agents, teams]);
-
-  if (!coo) return <p className="text-gray-500">Loading agents...</p>;
+  if (!ceo || !coo) return <p className="text-gray-500">Loading agents...</p>;
 
   return (
     <div className="w-full min-h-[calc(100vh-80px)] relative">
-      {/* Subtle radial glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] opacity-20 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse at center, #1a5a4a 0%, transparent 70%)' }} />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 pt-8">
+        {/* CEO Card */}
+        <div className="flex flex-col items-center mb-0">
+          <div className="rounded-2xl px-6 py-5 flex items-center gap-4 min-w-[340px]"
+            style={{ background: 'linear-gradient(135deg, #2a2418 0%, #1e2a1e 100%)', border: '1px solid #8B7332' }}>
+            <Avatar agentId="ceo" size={60} />
+            <div>
+              <div className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: '#c4a04a' }}>CEO</div>
+              <div className="text-[24px] font-bold text-white leading-tight">{ceo.name}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <ModelBadge model={ceo.model} />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center">
+            <div style={{ width: 2, height: 30, background: '#4a5a3a' }} />
+          </div>
+        </div>
+
         {/* COO Card */}
         <div className="flex flex-col items-center mb-0">
           <div className="rounded-2xl px-6 py-5 flex items-center gap-4 min-w-[340px]"
@@ -113,74 +172,43 @@ function OrgChartView({ agents, teams }: { agents: Agent[]; teams: Team[] }) {
               <div className="text-[13px] mt-0.5" style={{ color: '#8a9a7a' }}>
                 Research · Delegation · Execution · Orchestration
               </div>
+              <div className="mt-1"><ModelBadge model={coo.model} /></div>
             </div>
           </div>
-
-          {/* Connector line */}
           <div className="flex flex-col items-center">
-            <div style={{ width: 2, height: 40, background: '#4a5a3a' }} />
+            <div style={{ width: 2, height: 30, background: '#4a5a3a' }} />
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#c4a04a', marginTop: -1 }} />
           </div>
         </div>
 
-        {/* Executive Row */}
-        <div className="grid gap-5 mt-4 mb-8" style={{ gridTemplateColumns: `repeat(${execTeams.length}, 1fr)` }}>
-          {execTeams.map(({ exec }) => (
-            <div key={exec.id} className="rounded-xl p-5 flex items-start gap-4"
-              style={{ background: '#1e1e24', border: '1px solid #8B7332' }}>
-              <Avatar agentId={exec.agentId} size={56} />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[18px] font-bold text-white">{exec.name}</span>
-                  <ModelBadge model={exec.model} />
-                </div>
-                <div className="text-[14px] font-semibold mt-0.5" style={{ color: '#D4A030' }}>{exec.role}</div>
-                <div className="text-[12px] mt-1 leading-relaxed" style={{ color: '#999' }}>
-                  {exec.persona || `${exec.specialization} leadership and strategic direction`}
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* CTO / CPO Executive Row */}
+        <div className="grid grid-cols-2 gap-5 mt-4 mb-8">
+          {cto && <ExecCard agent={cto} />}
+          {cpo && <ExecCard agent={cpo} />}
         </div>
 
-        {/* Department Grid */}
-        <div className="grid gap-5" style={{ gridTemplateColumns: `repeat(${execTeams.length}, 1fr)` }}>
-          {execTeams.map(({ exec, team, agents: teamAgents }) => (
-            <div key={exec.id}>
-              {/* Department Section */}
-              <div className="rounded-xl p-5" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
-                {/* Department Header */}
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[16px] font-bold text-white">{team?.name || `${exec.role} Team`}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px]" style={{ color: '#777' }}>{teamAgents.length} agents</span>
-                    <span style={{ color: '#c4a04a', fontSize: 12 }}>▲</span>
-                  </div>
-                </div>
-                <p className="text-[12px] mb-4" style={{ color: '#888' }}>
-                  {team?.description || `Team under ${exec.name}`}
-                </p>
+        {/* Department Grid — 2 columns: CTO teams | CPO teams */}
+        <div className="grid grid-cols-2 gap-5">
+          {/* CTO Column */}
+          <div>
+            <TeamSection name="Backend & Security" description="APIs, business logic, data pipelines, vulnerability scanning, and code audits"
+              agents={[linus, ada].filter(Boolean)} />
+            <TeamSection name="Frontend & DevOps" description="UI/UX implementation, design systems, CI/CD, deployments, and infrastructure"
+              agents={[pixel, terraform].filter(Boolean)} />
+            <TeamSection name="QA Team" description="Test strategy, test automation, code quality reviews, and coverage enforcement"
+              agents={[sentinel].filter(Boolean)} />
+            {/* Direct CTO reports not in a team section */}
+            {[turing, piper, vector].filter(Boolean).length > 0 && (
+              <TeamSection name="AI & Data" description="AI/ML architecture, data pipelines, and retrieval systems"
+                agents={[turing, piper, vector].filter(Boolean)} />
+            )}
+          </div>
 
-                {/* Agent Cards */}
-                <div className="space-y-3">
-                  {teamAgents.map(agent => (
-                    <div key={agent.id} className="rounded-xl p-4"
-                      style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }}>
-                      <div className="flex items-center gap-3 mb-1">
-                        <Avatar agentId={agent.agentId} size={32} />
-                        <span className="text-[15px] font-semibold text-white">{agent.name}</span>
-                      </div>
-                      <div className="text-[12px] mb-2" style={{ color: '#999' }}>{agent.role}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(agent.status === 'online' || agent.status === 'idle' || agent.status === 'busy') && <ActiveBadge />}
-                        <ModelBadge model={agent.model} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+          {/* CPO Column */}
+          <div>
+            <TeamSection name="Product Owner Team" description="Product intelligence, go-to-market strategy, and launch campaigns"
+              agents={[nova].filter(Boolean)} />
+          </div>
         </div>
       </div>
     </div>
