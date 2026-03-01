@@ -1,14 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import ReactFlow, {
-  Background,
-  Controls,
-  type Node,
-  type Edge,
-  Position,
-} from 'reactflow';
-import dagre from '@dagrejs/dagre';
-import 'reactflow/dist/style.css';
-
 import { useAgents, useCreateAgent, useDeleteAgent, useRemoveAgentFromTeam, useDisableAgent, useEnableAgent, useNameSuggestions } from './queries/agents';
 import { useTeams, useCreateTeam, useDeleteTeam, useAddAgentToTeam, useDisableTeam, useEnableTeam } from './queries/teams';
 import { useTasks } from './queries/tasks';
