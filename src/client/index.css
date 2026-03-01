@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-status-online: #22c55e;
+  --color-status-busy: #f59e0b;
+  --color-status-idle: #94a3b8;
+  --color-status-offline: #ef4444;
+
+  --color-spec-backend: #3b82f6;
+  --color-spec-frontend: #a855f7;
+  --color-spec-security: #ef4444;
+  --color-spec-devops: #f97316;
+  --color-spec-qa: #22c55e;
+  --color-spec-aiml: #06b6d4;
+  --color-spec-dataeng: #f59e0b;
+  --color-spec-retrieval: #14b8a6;
+  --color-spec-product: #ec4899;
+
+  --color-sidebar: #1e293b;
+}
+
+/* React Flow overrides */
+.react-flow__node {
+  border: none !important;
+  background: none !important;
+  padding: 0 !important;
+}
