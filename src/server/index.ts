@@ -5,6 +5,9 @@ import agentRoutes from './routes/agents.js';
 import teamRoutes from './routes/teams.js';
 import taskRoutes from './routes/tasks.js';
 import delegationRoutes from './routes/delegation.js';
+import storyRoutes from './routes/stories.js';
+import bugRoutes from './routes/bugs.js';
+import boardRoutes from './routes/board.js';
 
 const app = new Hono();
 
@@ -31,6 +34,9 @@ app.route('/api/fleet/agents', agentRoutes);
 app.route('/api/fleet/teams', teamRoutes);
 app.route('/api/fleet/tasks', taskRoutes);
 app.route('/api/fleet', delegationRoutes);
+app.route('/api/stories', storyRoutes);
+app.route('/api/bugs', bugRoutes);
+app.route('/api/board', boardRoutes);
 
 // Specializations endpoint
 app.get('/api/fleet/specializations', (c) => {

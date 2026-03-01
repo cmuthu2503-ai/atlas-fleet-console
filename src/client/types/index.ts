@@ -56,6 +56,67 @@ export interface DelegationStep {
   completedAt?: string;
 }
 
+// ─── Jira Board Types ───
+export type StoryStatus = 'backlog' | 'created' | 'in_progress' | 'code_review' |
+  'qa_testing' | 'bug_fix' | 'ready_to_deploy' | 'deploying' | 'post_deploy_qa' | 'done';
+
+export interface UserStory {
+  id: string;
+  title: string;
+  description?: string;
+  acceptanceCriteria?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: StoryStatus;
+  assignedTo?: string;
+  assignedToName?: string;
+  team?: string;
+  gate: number;
+  sprint?: string;
+  bugLoopCount: number;
+  bugCount: number;
+  parentFeature?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+export interface Bug {
+  id: string;
+  storyId: string;
+  title: string;
+  description?: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  foundBy?: string;
+  assignedTo?: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'verified' | 'wont_fix';
+  createdAt: number;
+  resolvedAt?: number;
+}
+
+export interface StoryHistoryEntry {
+  id: string;
+  storyId: string;
+  fromStatus: string;
+  toStatus: string;
+  changedBy?: string;
+  changedAt: number;
+}
+
+export interface StoryFilters {
+  status?: StoryStatus;
+  assignedTo?: string;
+  priority?: string;
+  sprint?: string;
+}
+
+export interface BoardStats {
+  columns: Record<string, number>;
+  agents: Record<string, number>;
+  totalStories: number;
+  totalBugs: number;
+  avgBugLoopCount: number;
+}
+
 export type ViewMode = 'fleet' | 'tasks';
 
 export interface ContextMenuState {
