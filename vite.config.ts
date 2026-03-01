@@ -7,6 +7,7 @@ export default defineConfig({
   publicDir: 'public',
   server: {
     port: 5173,
+    allowedHosts: true as any,
     proxy: {
       '/api/fleet': {
         target: 'http://localhost:3590',
