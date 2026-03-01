@@ -77,7 +77,6 @@ app.patch('/:id/disable', async (c) => {
     const existing = await db.select().from(teams).where(eq(teams.id, id));
     if (existing.length === 0) return c.json({ error: 'Team not found' }, 404);
 
-    // Save pre-disable status for each agent, then disable all
     const teamAgents = await db.select().from(agents).where(eq(agents.teamId, id));
     for (const agent of teamAgents) {
       await db.update(agents).set({
@@ -101,7 +100,6 @@ app.patch('/:id/enable', async (c) => {
     const existing = await db.select().from(teams).where(eq(teams.id, id));
     if (existing.length === 0) return c.json({ error: 'Team not found' }, 404);
 
-    // Restore pre-disable status for each agent
     const teamAgents = await db.select().from(agents).where(eq(agents.teamId, id));
     for (const agent of teamAgents) {
       const restoreStatus = agent.preTeamDisableStatus || 'offline';
@@ -114,6 +112,48 @@ app.patch('/:id/enable', async (c) => {
 
     await db.update(teams).set({ status: 'active', updatedAt: Date.now() }).where(eq(teams.id, id));
     return c.json({ data: { id, status: 'active', agentsRestored: teamAgents.length } });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// DELETE /api/fleet/teams/:id
+app.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const existing = await db.select().from(teams).where(eq(teams.id, id));
+    if (existing.length === 0) return c.json({ error: 'Team not found' }, 404);
+
+    // Unassign all agents from this team
+    const teamAgents = await db.select().from(agents).where(eq(agents.teamId, id));
+    for (const agent of teamAgents) {
+      await db.update(agents).set({ teamId: null, updatedAt: Date.now() }).where(eq(agents.id, agent.id));
+    }
+
+    await db.delete(teams).where(eq(teams.id, id));
+    return c.json({ data: { id, deleted: true, agentsUnassigned: teamAgents.length } });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// POST /api/fleet/teams/:id/add-agent
+app.post('/:id/add-agent', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const { agentId } = body;
+    if (!agentId) return c.json({ error: 'agentId is required' }, 400);
+
+    const team = await db.select().from(teams).where(eq(teams.id, id));
+    if (team.length === 0) return c.json({ error: 'Team not found' }, 404);
+
+    const agent = await db.select().from(agents).where(or(eq(agents.id, agentId), eq(agents.agentId, agentId)));
+    if (agent.length === 0) return c.json({ error: 'Agent not found' }, 404);
+
+    await db.update(agents).set({ teamId: id, updatedAt: Date.now() }).where(eq(agents.id, agent[0]!.id));
+    const updated = await db.select().from(agents).where(eq(agents.id, agent[0]!.id));
+    return c.json({ data: updated[0] });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }

@@ -17,6 +17,10 @@ const SPECIALIZATION_NAMES: Record<string, string[]> = {
   'Data Engineering': ['Stream', 'Delta', 'Lake', 'Conduit', 'Funnel', 'Siphon', 'Tap', 'Flow'],
   'Retrieval': ['Seeker', 'Finder', 'Scout', 'Radar', 'Compass', 'Index', 'Query', 'Fetch'],
   'Product Management': ['Vision', 'Scope', 'Compass', 'Atlas', 'Guide', 'North', 'Beacon', 'Lens'],
+  'Enterprise Architecture': ['Strategist', 'Govern', 'Mandate', 'Blueprint', 'Standard'],
+  'Platform Architecture': ['Platform', 'Micro', 'Gateway', 'Mesh', 'Service'],
+  'Data Architecture': ['Schema', 'Model', 'Catalog', 'Lineage', 'Govern'],
+  'Technology Architecture': ['Stack', 'Cloud', 'Infra', 'Fabric', 'Core'],
 };
 
 // GET /api/fleet/agents
@@ -149,6 +153,44 @@ app.patch('/:id/enable', async (c) => {
     if (existing.length === 0) return c.json({ error: 'Agent not found' }, 404);
 
     await db.update(agents).set({ status: 'online', updatedAt: Date.now() }).where(eq(agents.id, existing[0]!.id));
+    const updated = await db.select().from(agents).where(eq(agents.id, existing[0]!.id));
+    return c.json({ data: updated[0] });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// DELETE /api/fleet/agents/:id
+app.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const existing = await db.select().from(agents).where(or(eq(agents.id, id), eq(agents.agentId, id)));
+    if (existing.length === 0) return c.json({ error: 'Agent not found' }, 404);
+    const agentRecord = existing[0]!;
+
+    // Re-parent children to this agent's parent
+    const children = await db.select().from(agents).where(eq(agents.parentAgentId, agentRecord.id));
+    for (const child of children) {
+      await db.update(agents).set({ parentAgentId: agentRecord.parentAgentId, updatedAt: Date.now() }).where(eq(agents.id, child.id));
+    }
+
+    // Unassign from tasks
+    await db.update(tasks).set({ assignedAgentId: null, updatedAt: Date.now() }).where(eq(tasks.assignedAgentId, agentRecord.id));
+
+    await db.delete(agents).where(eq(agents.id, agentRecord.id));
+    return c.json({ data: { id: agentRecord.id, deleted: true, childrenReparented: children.length } });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// PATCH /api/fleet/agents/:id/remove-from-team
+app.patch('/:id/remove-from-team', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const existing = await db.select().from(agents).where(or(eq(agents.id, id), eq(agents.agentId, id)));
+    if (existing.length === 0) return c.json({ error: 'Agent not found' }, 404);
+    await db.update(agents).set({ teamId: null, updatedAt: Date.now() }).where(eq(agents.id, existing[0]!.id));
     const updated = await db.select().from(agents).where(eq(agents.id, existing[0]!.id));
     return c.json({ data: updated[0] });
   } catch (e: any) {

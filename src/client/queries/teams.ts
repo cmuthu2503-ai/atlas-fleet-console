@@ -33,6 +33,34 @@ export function useCreateTeam() {
   });
 }
 
+export function useDeleteTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`${BASE}/teams/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['teams'] });
+      qc.invalidateQueries({ queryKey: ['agents'] });
+    },
+  });
+}
+
+export function useAddAgentToTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ teamId, agentId }: { teamId: string; agentId: string }) =>
+      fetchJson(`${BASE}/teams/${teamId}/add-agent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['teams'] });
+      qc.invalidateQueries({ queryKey: ['agents'] });
+    },
+  });
+}
+
 export function useDisableTeam() {
   const qc = useQueryClient();
   return useMutation({

@@ -78,6 +78,30 @@ export function useEnableAgent() {
   });
 }
 
+export function useDeleteAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`${BASE}/agents/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.invalidateQueries({ queryKey: ['teams'] });
+    },
+  });
+}
+
+export function useRemoveAgentFromTeam() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`${BASE}/agents/${id}/remove-from-team`, { method: 'PATCH' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.invalidateQueries({ queryKey: ['teams'] });
+    },
+  });
+}
+
 export function useNameSuggestions(specialization: string | null) {
   return useQuery<{ names: string[] }>({
     queryKey: ['nameSuggestions', specialization],
