@@ -6,7 +6,8 @@ const BASE = '/api/fleet';
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const json = await res.json();
+  return json.data !== undefined ? json.data : json;
 }
 
 export function useTasks() {

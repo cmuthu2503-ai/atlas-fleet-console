@@ -6,7 +6,8 @@ const BASE = '/api/fleet';
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const json = await res.json();
+  return json.data !== undefined ? json.data : json;
 }
 
 export function useAgents() {
@@ -60,7 +61,7 @@ export function useDisableAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      fetchJson<Agent>(`${BASE}/agents/${id}/disable`, { method: 'POST' }),
+      fetchJson<Agent>(`${BASE}/agents/${id}/disable`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agents'] });
     },
@@ -71,7 +72,7 @@ export function useEnableAgent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      fetchJson<Agent>(`${BASE}/agents/${id}/enable`, { method: 'POST' }),
+      fetchJson<Agent>(`${BASE}/agents/${id}/enable`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agents'] });
     },

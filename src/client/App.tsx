@@ -157,7 +157,7 @@ function TeamsView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
             </div>
             {t.description && <p className="text-sm text-gray-500 mb-2">{t.description}</p>}
             <div className="space-y-1">
-              {(t.agents ?? []).map(a => (
+              {agents.filter(a => a.teamId === t.id).map(a => (
                 <div key={a.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-gray-50">
                   <div className="flex items-center gap-2">
                     <StatusDot status={a.status} />
@@ -168,7 +168,7 @@ function TeamsView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
                     className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 text-xs" title="Remove from team">✕</button>
                 </div>
               ))}
-              {(t.agents ?? []).length === 0 && <p className="text-xs text-gray-400 italic">No agents</p>}
+              {agents.filter(a => a.teamId === t.id).length === 0 && <p className="text-xs text-gray-400 italic">No agents</p>}
             </div>
           </div>
         ))}
@@ -281,7 +281,7 @@ function AgentsView({ agents, teams }: { agents: Agent[]; teams: Team[] }) {
           </div>
           <div className="flex justify-end pt-2">
             <button disabled={!form.name || !form.role}
-              onClick={() => { createAgent.mutate({ name: form.name, role: form.role, teamId: form.teamId || undefined, specialization: form.specialization || undefined } as any); resetForm(); }}
+              onClick={() => { createAgent.mutate({ agentId: form.name.toLowerCase().replace(/\s+/g, '-'), name: form.name, role: form.role, teamId: form.teamId || undefined, specialization: form.specialization || undefined } as any); resetForm(); }}
               className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Create</button>
           </div>
         </div>

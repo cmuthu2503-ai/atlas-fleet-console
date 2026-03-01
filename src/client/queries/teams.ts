@@ -6,7 +6,8 @@ const BASE = '/api/fleet';
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  const json = await res.json();
+  return json.data !== undefined ? json.data : json;
 }
 
 export function useTeams() {
@@ -65,7 +66,7 @@ export function useDisableTeam() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      fetchJson(`${BASE}/teams/${id}/disable`, { method: 'POST' }),
+      fetchJson(`${BASE}/teams/${id}/disable`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['teams'] });
       qc.invalidateQueries({ queryKey: ['agents'] });
@@ -77,7 +78,7 @@ export function useEnableTeam() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      fetchJson(`${BASE}/teams/${id}/enable`, { method: 'POST' }),
+      fetchJson(`${BASE}/teams/${id}/enable`, { method: 'PATCH' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['teams'] });
       qc.invalidateQueries({ queryKey: ['agents'] });

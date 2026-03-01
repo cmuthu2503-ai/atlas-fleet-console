@@ -63,6 +63,47 @@ app.post('/suggest-name', async (c) => {
   }
 });
 
+// GET /api/fleet/agents/name-suggestions
+app.get('/name-suggestions', async (c) => {
+  try {
+    const specialization = c.req.query('specialization');
+    if (!specialization) return c.json({ data: { names: [] } });
+    const names = SPECIALIZATION_NAMES[specialization] || SPECIALIZATION_NAMES['Backend']!;
+    const existing = await db.select({ name: agents.name }).from(agents);
+    const existingNames = new Set(existing.map(a => a.name));
+    const available = names.filter(n => !existingNames.has(n));
+    return c.json({ data: { names: available.slice(0, 3) } });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// GET /api/fleet/agents/model-recommendation
+app.get('/model-recommendation', async (c) => {
+  try {
+    const specialization = c.req.query('specialization');
+    const MODEL_MAP: Record<string, { recommended: string; alternatives: string[] }> = {
+      'Backend': { recommended: 'kimi-k2.5', alternatives: ['deepseek-v3'] },
+      'Frontend': { recommended: 'kimi-k2.5', alternatives: ['claude-sonnet'] },
+      'Security': { recommended: 'kimi-k2.5', alternatives: ['claude-opus'] },
+      'DevOps': { recommended: 'deepseek-v3', alternatives: ['kimi-k2.5'] },
+      'QA': { recommended: 'kimi-k2.5', alternatives: ['deepseek-v3'] },
+      'AI/ML': { recommended: 'kimi-k2.5', alternatives: ['claude-opus'] },
+      'Data Engineering': { recommended: 'deepseek-v3', alternatives: ['kimi-k2.5'] },
+      'Retrieval': { recommended: 'kimi-k2.5', alternatives: ['claude-sonnet'] },
+      'Product Management': { recommended: 'claude-sonnet', alternatives: ['claude-opus'] },
+      'Enterprise Architecture': { recommended: 'claude-opus', alternatives: ['kimi-k2.5'] },
+      'Platform Architecture': { recommended: 'claude-opus', alternatives: ['kimi-k2.5'] },
+      'Data Architecture': { recommended: 'claude-opus', alternatives: ['deepseek-v3'] },
+      'Technology Architecture': { recommended: 'claude-opus', alternatives: ['deepseek-v3'] },
+    };
+    const rec = MODEL_MAP[specialization || ''] || { recommended: 'claude-sonnet', alternatives: ['kimi-k2.5'] };
+    return c.json({ data: rec });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // GET /api/fleet/agents/:id
 app.get('/:id', async (c) => {
   try {
