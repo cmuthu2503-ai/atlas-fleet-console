@@ -5,6 +5,26 @@ import { eq } from 'drizzle-orm';
 
 const app = new Hono();
 
+// GET /api/bugs — list all bugs
+app.get('/', async (c) => {
+  try {
+    const status = c.req.query('status');
+    const severity = c.req.query('severity');
+    const conditions: any[] = [];
+    if (status) conditions.push(eq(bugs.status, status as any));
+    if (severity) conditions.push(eq(bugs.severity, severity as any));
+
+    const { and, desc } = await import('drizzle-orm');
+    let query = db.select().from(bugs).orderBy(desc(bugs.createdAt));
+    const result = conditions.length > 0
+      ? await query.where(and(...conditions))
+      : await query;
+    return c.json({ data: result });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // PATCH /api/bugs/:id
 app.patch('/:id', async (c) => {
   try {
