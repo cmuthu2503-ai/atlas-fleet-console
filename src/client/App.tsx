@@ -4,9 +4,10 @@ import { useTeams, useCreateTeam, useDeleteTeam, useAddAgentToTeam, useDisableTe
 import { useTasks } from './queries/tasks';
 import { useDelegationSteps } from './queries/delegation';
 import { StatusDot } from './components/shared/StatusDot';
+import { KanbanBoardView } from './components/board/KanbanBoard';
 import type { Agent, Team, Task, DelegationStep } from './types';
 
-type View = 'orgchart' | 'teams' | 'agents' | 'traces';
+type View = 'orgchart' | 'teams' | 'agents' | 'traces' | 'board';
 
 const SPECIALIZATIONS = [
   'Enterprise Architecture', 'Platform Architecture', 'Data Architecture', 'Technology Architecture',
@@ -489,6 +490,7 @@ const tabs: { key: View; label: string; icon: string }[] = [
   { key: 'teams', label: 'Teams', icon: '👥' },
   { key: 'agents', label: 'Agents', icon: '🤖' },
   { key: 'traces', label: 'Task Traces', icon: '📋' },
+  { key: 'board', label: 'Jira Board', icon: '🗂' },
 ];
 
 export default function App() {
@@ -526,6 +528,7 @@ export default function App() {
             {view === 'teams' && <TeamsView teams={teams} agents={agents} />}
             {view === 'agents' && <AgentsView agents={agents} teams={teams} />}
             {view === 'traces' && <TaskTracesView tasks={tasks} />}
+            {view === 'board' && <KanbanBoardView />}
           </>
         )}
       </main>
