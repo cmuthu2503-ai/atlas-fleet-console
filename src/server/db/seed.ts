@@ -1,46 +1,9 @@
 import { db, sqlite } from './client.js';
-import { teams, agents, tasks, delegationSteps, userStories, bugs, storyHistory } from './schema.js';
+import { teams, agents, tasks, delegationSteps } from './schema.js';
 import { v4 as uuid } from 'uuid';
 
 // Create tables
 sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS user_stories (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    acceptance_criteria TEXT,
-    priority TEXT NOT NULL DEFAULT 'medium',
-    status TEXT NOT NULL DEFAULT 'backlog',
-    assigned_to TEXT REFERENCES agents(id),
-    team TEXT REFERENCES teams(id),
-    gate INTEGER NOT NULL DEFAULT 0,
-    sprint TEXT,
-    bug_loop_count INTEGER NOT NULL DEFAULT 0,
-    parent_feature TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    completed_at INTEGER
-  );
-  CREATE TABLE IF NOT EXISTS bugs (
-    id TEXT PRIMARY KEY,
-    story_id TEXT NOT NULL REFERENCES user_stories(id),
-    title TEXT NOT NULL,
-    description TEXT,
-    severity TEXT NOT NULL DEFAULT 'medium',
-    found_by TEXT REFERENCES agents(id),
-    assigned_to TEXT REFERENCES agents(id),
-    status TEXT NOT NULL DEFAULT 'open',
-    created_at INTEGER NOT NULL,
-    resolved_at INTEGER
-  );
-  CREATE TABLE IF NOT EXISTS story_history (
-    id TEXT PRIMARY KEY,
-    story_id TEXT NOT NULL REFERENCES user_stories(id),
-    from_status TEXT NOT NULL,
-    to_status TEXT NOT NULL,
-    changed_by TEXT,
-    changed_at INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS teams (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -96,7 +59,7 @@ sqlite.exec(`
 `);
 
 // Clear existing data
-sqlite.exec('DELETE FROM story_history; DELETE FROM bugs; DELETE FROM user_stories; DELETE FROM delegation_steps; DELETE FROM tasks; DELETE FROM agents; DELETE FROM teams;');
+sqlite.exec('DELETE FROM delegation_steps; DELETE FROM tasks; DELETE FROM agents; DELETE FROM teams;');
 
 const now = Date.now();
 
@@ -167,40 +130,4 @@ db.insert(delegationSteps).values([
   { id: uuid(), taskId: task3Id, fromAgentId: ctoId, toAgentId: adaId, action: 'assign', message: 'Audit API endpoints after T-001 completion', status: 'pending', createdAt: now },
 ]).run();
 
-// ─── Sample User Stories ───
-const story1 = uuid(), story2 = uuid(), story3 = uuid(), story4 = uuid();
-const story5 = uuid(), story6 = uuid(), story7 = uuid(), story8 = uuid();
-
-db.insert(userStories).values([
-  { id: story1, title: 'Design Fleet API Schema', description: 'Design REST API schema for fleet management console', acceptanceCriteria: 'All CRUD endpoints documented and typed', priority: 'high', status: 'done', assignedTo: linusId, team: ctoTeamId, gate: 7, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'Fleet Console', createdAt: now - 172800000, updatedAt: now, completedAt: now - 3600000 },
-  { id: story2, title: 'Build Agent Dashboard UI', description: 'Create frontend dashboard for agent management with status indicators', acceptanceCriteria: 'Agent cards with status, model badges, team grouping', priority: 'high', status: 'qa_testing', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'Fleet Console', createdAt: now - 86400000, updatedAt: now },
-  { id: story3, title: 'Implement Security Audit Pipeline', description: 'Automated security scanning for all API endpoints', acceptanceCriteria: 'Zero critical vulnerabilities, automated CI check', priority: 'critical', status: 'in_progress', assignedTo: adaId, team: ctoTeamId, gate: 1, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Security', createdAt: now - 43200000, updatedAt: now },
-  { id: story4, title: 'Setup CI/CD Pipeline', description: 'Docker-based deployment pipeline with staging and production', acceptanceCriteria: 'Auto-deploy on merge to main, rollback capability', priority: 'high', status: 'code_review', assignedTo: terraformId, team: ctoTeamId, gate: 2, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'DevOps', createdAt: now - 64800000, updatedAt: now },
-  { id: story5, title: 'RAG Knowledge Base Integration', description: 'Vector search integration for agent knowledge retrieval', acceptanceCriteria: 'Sub-200ms retrieval, >0.85 relevance score', priority: 'medium', status: 'backlog', assignedTo: vectorId, team: ctoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'AI Platform', createdAt: now - 21600000, updatedAt: now },
-  { id: story6, title: 'Task Delegation Tracing', description: 'Visual trace of task delegation chain across agents', acceptanceCriteria: 'Interactive delegation chain view with status colors', priority: 'medium', status: 'bug_fix', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 2, parentFeature: 'Fleet Console', createdAt: now - 129600000, updatedAt: now },
-  { id: story7, title: 'Product Roadmap Dashboard', description: 'Visual roadmap for product features and milestones', acceptanceCriteria: 'Timeline view with drag-and-drop milestone management', priority: 'low', status: 'created', assignedTo: novaId, team: cpoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Product', createdAt: now - 10800000, updatedAt: now },
-  { id: story8, title: 'ML Model Training Pipeline', description: 'Automated model training with experiment tracking', acceptanceCriteria: 'MLflow integration, auto hyperparameter tuning', priority: 'medium', status: 'ready_to_deploy', assignedTo: turingId, team: ctoTeamId, gate: 4, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'AI Platform', createdAt: now - 259200000, updatedAt: now },
-]).run();
-
-// Sample bugs
-db.insert(bugs).values([
-  { id: uuid(), storyId: story6, title: 'Delegation arrows misaligned on mobile', description: 'Arrow connectors overflow on viewport < 768px', severity: 'medium', foundBy: sentinelId, assignedTo: pixelId, status: 'open', createdAt: now - 7200000 },
-  { id: uuid(), storyId: story6, title: 'Status color not updating after transition', description: 'Badge color stays gray after completing step', severity: 'high', foundBy: sentinelId, assignedTo: pixelId, status: 'in_progress', createdAt: now - 3600000 },
-  { id: uuid(), storyId: story1, title: 'Missing validation on team name', description: 'Empty string accepted as team name', severity: 'low', foundBy: sentinelId, assignedTo: linusId, status: 'resolved', createdAt: now - 86400000, resolvedAt: now - 43200000 },
-  { id: uuid(), storyId: story2, title: 'Avatar not rendering for new agents', description: 'Default emoji missing for agents not in avatar map', severity: 'medium', foundBy: sentinelId, assignedTo: pixelId, status: 'open', createdAt: now - 1800000 },
-]).run();
-
-// Sample history
-db.insert(storyHistory).values([
-  { id: uuid(), storyId: story1, fromStatus: 'backlog', toStatus: 'in_progress', changedBy: 'Jira', changedAt: now - 172800000 },
-  { id: uuid(), storyId: story1, fromStatus: 'in_progress', toStatus: 'code_review', changedBy: 'Linus', changedAt: now - 129600000 },
-  { id: uuid(), storyId: story1, fromStatus: 'code_review', toStatus: 'qa_testing', changedBy: 'Jira', changedAt: now - 86400000 },
-  { id: uuid(), storyId: story1, fromStatus: 'qa_testing', toStatus: 'bug_fix', changedBy: 'Sentinel', changedAt: now - 64800000 },
-  { id: uuid(), storyId: story1, fromStatus: 'bug_fix', toStatus: 'qa_testing', changedBy: 'Linus', changedAt: now - 43200000 },
-  { id: uuid(), storyId: story1, fromStatus: 'qa_testing', toStatus: 'done', changedBy: 'Sentinel', changedAt: now - 3600000 },
-  { id: uuid(), storyId: story6, fromStatus: 'backlog', toStatus: 'in_progress', changedBy: 'Jira', changedAt: now - 129600000 },
-  { id: uuid(), storyId: story6, fromStatus: 'in_progress', toStatus: 'qa_testing', changedBy: 'Pixel', changedAt: now - 86400000 },
-  { id: uuid(), storyId: story6, fromStatus: 'qa_testing', toStatus: 'bug_fix', changedBy: 'Sentinel', changedAt: now - 43200000 },
-]).run();
-
-console.log('✅ Seed complete: 3 teams, 14 agents, 3 tasks, 5 delegation steps, 8 stories, 4 bugs, 9 history entries');
+console.log('✅ Seed complete: 3 teams, 14 agents, 3 tasks, 5 delegation steps');
