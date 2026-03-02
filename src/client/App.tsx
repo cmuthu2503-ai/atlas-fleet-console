@@ -20,6 +20,8 @@ const agentAvatars: Record<string, string> = {
   'linus': '⚙️', 'pixel': '🎨', 'ada': '🔒', 'terraform': '🏗️',
   'sentinel': '🛡️', 'turing': '🧠', 'piper': '📊', 'vector': '🔍',
   'nova': '⭐',
+  'atlas': '🏛️', 'nimbus': '☁️', 'prism': '💎',
+  'bastion': '🏰', 'bridge': '🌉', 'forge': '🔥',
 };
 
 // ─── Model Badge Mapping ───
@@ -139,6 +141,10 @@ function OrgChartView({ agents }: { agents: Agent[]; teams: Team[] }) {
   const sentinel = byId['sentinel'], turing = byId['turing'], piper = byId['piper'], vector = byId['vector'];
   const nova = byId['nova'];
 
+  // Technology Consulting Office (reports directly to CTO)
+  const atlas = byId['atlas'], nimbus = byId['nimbus'], prism = byId['prism'];
+  const bastion = byId['bastion'], bridge = byId['bridge'], forge = byId['forge'];
+
   if (!ceo || !coo) return <p className="text-gray-500">Loading agents...</p>;
 
   return (
@@ -231,10 +237,23 @@ function OrgChartView({ agents }: { agents: Agent[]; teams: Team[] }) {
             )}
           </div>
 
-          {/* CPO Column */}
+          {/* CPO Column + Consulting Office */}
           <div>
             <TeamSection name="Product Owner Team" description="Product intelligence, go-to-market strategy, and launch campaigns"
               agents={[nova].filter(Boolean)} />
+
+            {/* Technology Consulting Office — reports directly to CTO */}
+            {[atlas, nimbus, prism, bastion, bridge, forge].filter(Boolean).length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <div style={{ width: 4, height: 20, background: '#c4a04a', borderRadius: 2 }} />
+                  <span className="text-[13px] font-bold uppercase tracking-wider" style={{ color: '#c4a04a' }}>Technology Consulting Office</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: '#3a2a1a', color: '#c4a04a', border: '1px solid #5a4a2a' }}>Reports to CTO</span>
+                </div>
+                <TeamSection name="Consulting Team" description="Enterprise architecture, cloud, data, security, integration, and DevOps consulting"
+                  agents={[atlas, nimbus, prism, bastion, bridge, forge].filter(Boolean)} />
+              </div>
+            )}
           </div>
         </div>
       </div>

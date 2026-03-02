@@ -104,11 +104,13 @@ const now = Date.now();
 const leadershipTeamId = uuid();
 const ctoTeamId = uuid();
 const cpoTeamId = uuid();
+const consultingTeamId = uuid();
 
 db.insert(teams).values([
   { id: leadershipTeamId, name: 'Leadership', description: 'Executive leadership team', channelId: '#leadership', status: 'active', createdAt: now, updatedAt: now },
   { id: ctoTeamId, name: 'CTO Team', description: 'Engineering team under CTO', channelId: '#engineering', status: 'active', createdAt: now, updatedAt: now },
   { id: cpoTeamId, name: 'CPO Team', description: 'Product team under CPO', channelId: '#product', status: 'active', createdAt: now, updatedAt: now },
+  { id: consultingTeamId, name: 'Technology Consulting Office', description: 'Technology consulting and advisory services under CTO', channelId: '#consulting', status: 'active', createdAt: now, updatedAt: now },
 ]).run();
 
 // Leadership agents
@@ -141,6 +143,19 @@ db.insert(agents).values([
   { id: turingId, agentId: 'turing', name: 'Turing', role: 'AI/ML Engineer', persona: 'AI research enthusiast', teamId: ctoTeamId, status: 'idle', specialization: 'AI/ML', model: 'kimi-k2.5', capabilities: '["machine-learning","nlp","model-training"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
   { id: piperId, agentId: 'piper', name: 'Piper', role: 'Data Engineer', persona: 'Data pipeline architect', teamId: ctoTeamId, status: 'idle', specialization: 'Data Engineering', model: 'deepseek-v3', capabilities: '["etl","data-pipelines","analytics"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
   { id: vectorId, agentId: 'vector', name: 'Vector', role: 'Retrieval Engineer', persona: 'Search and retrieval specialist', teamId: ctoTeamId, status: 'idle', specialization: 'Retrieval', model: 'kimi-k2.5', capabilities: '["vector-search","rag","embeddings"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+]).run();
+
+// Technology Consulting Office agents (report directly to CTO)
+const atlasId = uuid(), nimbusId = uuid(), prismId = uuid();
+const bastionId = uuid(), bridgeId = uuid(), forgeId = uuid();
+
+db.insert(agents).values([
+  { id: atlasId, agentId: 'atlas', name: 'Atlas', role: 'Solutions Architect', persona: 'Enterprise architecture strategist', teamId: consultingTeamId, status: 'online', specialization: 'Enterprise Architecture', model: 'kimi-k2.5', capabilities: '["solution-design","enterprise-architecture","system-integration"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: nimbusId, agentId: 'nimbus', name: 'Nimbus', role: 'Cloud Consultant', persona: 'Cloud migration and optimization expert', teamId: consultingTeamId, status: 'online', specialization: 'Cloud Architecture', model: 'deepseek-v3', capabilities: '["cloud-migration","aws","azure","gcp","cost-optimization"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: prismId, agentId: 'prism', name: 'Prism', role: 'Data & Analytics Consultant', persona: 'Data strategy and analytics advisor', teamId: consultingTeamId, status: 'online', specialization: 'Data Architecture', model: 'kimi-k2.5', capabilities: '["data-strategy","analytics","bi","data-governance"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: bastionId, agentId: 'bastion', name: 'Bastion', role: 'Security & Compliance Consultant', persona: 'Security frameworks and compliance advisor', teamId: consultingTeamId, status: 'online', specialization: 'Security', model: 'kimi-k2.5', capabilities: '["security-frameworks","compliance","risk-assessment","audit"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: bridgeId, agentId: 'bridge', name: 'Bridge', role: 'Integration Specialist', persona: 'Systems integration and API strategist', teamId: consultingTeamId, status: 'online', specialization: 'Platform Architecture', model: 'claude-sonnet-4.6', capabilities: '["api-strategy","system-integration","middleware","iPaaS"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: forgeId, agentId: 'forge', name: 'Forge', role: 'DevOps Consultant', persona: 'DevOps transformation and automation advisor', teamId: consultingTeamId, status: 'online', specialization: 'DevOps', model: 'deepseek-v3', capabilities: '["devops-strategy","platform-engineering","sre","automation"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
 ]).run();
 
 // CPO Team agent
@@ -203,4 +218,4 @@ db.insert(storyHistory).values([
   { id: uuid(), storyId: story6, fromStatus: 'qa_testing', toStatus: 'bug_fix', changedBy: 'Sentinel', changedAt: now - 43200000 },
 ]).run();
 
-console.log('✅ Seed complete: 3 teams, 14 agents, 3 tasks, 5 delegation steps, 8 stories, 4 bugs, 9 history entries');
+console.log('✅ Seed complete: 4 teams, 20 agents, 3 tasks, 5 delegation steps, 8 stories, 4 bugs, 9 history entries');
