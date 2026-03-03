@@ -14,7 +14,7 @@ const COLUMNS: StoryStatus[] = [
 ];
 
 export function KanbanBoardView() {
-  const [filters, setFilters] = useState<StoryFilters>({});
+  const [filters, setFilters] = useState<StoryFilters>({ linkedOnly: true });
   const [showCreate, setShowCreate] = useState(false);
   const [selectedStory, setSelectedStory] = useState<UserStory | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,12 +27,14 @@ export function KanbanBoardView() {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['stories'] });
-    await queryClient.invalidateQueries({ queryKey: ['board-stats'] });
-    setTimeout(() => setIsRefreshing(false), 500);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['stories'] }),
+      queryClient.invalidateQueries({ queryKey: ['board-stats'] }),
+    ]);
+    setIsRefreshing(false);
   }, [queryClient]);
 
-  const { data: stories = [] } = useStories(filters);
+  const { data: stories = [], dataUpdatedAt: storiesUpdatedAt } = useStories(filters);
   const { data: searchResults = [] } = useSearchStories(debouncedSearch);
 
   const handleSearchChange = (value: string) => {
@@ -43,7 +45,7 @@ export function KanbanBoardView() {
       setShowSearchResults(value.length > 0);
     }, 300);
   };
-  const { data: stats } = useBoardStats();
+  const { data: stats, dataUpdatedAt: statsUpdatedAt } = useBoardStats(filters);
   const { data: agents = [] } = useAgents();
   const createStory = useCreateStory();
   const updateStory = useUpdateStory();
@@ -85,6 +87,11 @@ export function KanbanBoardView() {
             {' '}{isRefreshing ? 'Refreshing…' : 'Refresh'}
           </button>
           <style>{`@keyframes refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+          {(storiesUpdatedAt || statsUpdatedAt) ? (
+            <span className="text-xs text-gray-500">
+              Updated {new Date(Math.max(storiesUpdatedAt || 0, statsUpdatedAt || 0)).toLocaleTimeString()}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">

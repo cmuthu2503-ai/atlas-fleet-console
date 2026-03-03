@@ -109,6 +109,7 @@ export interface StoryFilters {
   assignedTo?: string;
   priority?: string;
   sprint?: string;
+  linkedOnly?: boolean;
 }
 
 export interface BoardStats {

@@ -34,7 +34,7 @@ export function BoardFilters({ filters, onChange, agents }: {
         {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
       </select>
       {(filters.status || filters.priority || filters.assignedTo) && (
-        <button onClick={() => onChange({})} className="text-xs text-gray-500 hover:text-gray-300 px-2">✕ Clear</button>
+        <button onClick={() => onChange({ linkedOnly: true })} className="text-xs text-gray-500 hover:text-gray-300 px-2">✕ Clear</button>
       )}
     </div>
   );

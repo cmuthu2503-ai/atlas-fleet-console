@@ -14,6 +14,30 @@ const STATUS_GATE_MAP: Record<string, number> = {
   post_deploy_qa: 6, done: 7,
 };
 
+const truthy = new Set(['1', 'true', 'yes', 'on']);
+function parseBoolean(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  return truthy.has(value.toLowerCase());
+}
+
+function mapStoryStatusToTaskStatus(status: string): 'pending' | 'in_progress' | 'completed' {
+  if (status === 'done') return 'completed';
+  if (status === 'backlog' || status === 'created') return 'pending';
+  return 'in_progress';
+}
+
+async function getNextTaskCode() {
+  const existing = await db.select({ taskCode: tasks.taskCode }).from(tasks).where(like(tasks.taskCode, 'T-%'));
+  let max = 0;
+  for (const row of existing) {
+    const match = /^T-(\d+)$/.exec(row.taskCode || '');
+    if (!match) continue;
+    const n = parseInt(match[1], 10);
+    if (Number.isFinite(n)) max = Math.max(max, n);
+  }
+  return `T-${String(max + 1).padStart(3, '0')}`;
+}
+
 // ─── Stories CRUD ───
 
 // GET /api/stories
@@ -23,6 +47,7 @@ app.get('/', async (c) => {
     const assignedTo = c.req.query('assignedTo');
     const priority = c.req.query('priority');
     const sprint = c.req.query('sprint');
+    const linkedOnly = parseBoolean(c.req.query('linkedOnly'), true);
     const limit = parseInt(c.req.query('limit') || '100');
     const offset = parseInt(c.req.query('offset') || '0');
 
@@ -31,6 +56,7 @@ app.get('/', async (c) => {
     if (assignedTo) conditions.push(eq(userStories.assignedTo, assignedTo));
     if (priority) conditions.push(eq(userStories.priority, priority as any));
     if (sprint) conditions.push(eq(userStories.sprint, sprint));
+    if (linkedOnly) conditions.push(sql`${userStories.taskId} IS NOT NULL`);
 
     let query = db.select({
       id: userStories.id, title: userStories.title, description: userStories.description,
@@ -116,6 +142,7 @@ const createStorySchema = z.object({
   team: z.string().optional(),
   sprint: z.string().optional(),
   parentFeature: z.string().optional(),
+  taskId: z.string().optional(),
 });
 
 app.post('/', async (c) => {
@@ -126,11 +153,31 @@ app.post('/', async (c) => {
 
     const now = Date.now();
     const status = parsed.data.status || 'backlog';
+    let taskId = parsed.data.taskId;
+    if (!taskId) {
+      const taskStatus = mapStoryStatusToTaskStatus(status);
+      taskId = uuid();
+      await db.insert(tasks).values({
+        id: taskId,
+        taskCode: await getNextTaskCode(),
+        title: parsed.data.title,
+        description: parsed.data.description,
+        status: taskStatus,
+        priority: parsed.data.priority || 'medium',
+        assignedAgentId: parsed.data.assignedTo,
+        createdByAgentId: parsed.data.assignedTo,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: taskStatus === 'completed' ? now : null,
+      });
+    }
+
     const newStory = {
       id: uuid(),
       ...parsed.data,
       status,
       priority: parsed.data.priority || 'medium',
+      taskId,
       gate: STATUS_GATE_MAP[status] || 0,
       bugLoopCount: 0,
       createdAt: now,
@@ -154,6 +201,8 @@ app.patch('/:id', async (c) => {
     const story = existing[0];
     const now = Date.now();
     const updates: any = { ...body, updatedAt: now };
+    const taskUpdates: any = { updatedAt: now };
+    let shouldUpdateTask = false;
 
     // Status transition logic
     if (body.status && body.status !== story.status) {
@@ -179,12 +228,24 @@ app.patch('/:id', async (c) => {
       if (body.status === 'done') {
         updates.completedAt = now;
       }
+
+      taskUpdates.status = mapStoryStatusToTaskStatus(body.status);
+      taskUpdates.completedAt = body.status === 'done' ? now : null;
+      shouldUpdateTask = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'assignedTo')) {
+      taskUpdates.assignedAgentId = body.assignedTo || null;
+      shouldUpdateTask = true;
     }
 
     // Remove changedBy from updates (not a column)
     delete updates.changedBy;
 
     await db.update(userStories).set(updates).where(eq(userStories.id, id));
+    if (story.taskId && shouldUpdateTask) {
+      await db.update(tasks).set(taskUpdates).where(eq(tasks.id, story.taskId));
+    }
     const updated = await db.select().from(userStories).where(eq(userStories.id, id));
     return c.json({ data: updated[0] });
   } catch (e: any) {

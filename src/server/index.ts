@@ -13,6 +13,12 @@ import boardRoutes from './routes/board.js';
 const app = new Hono();
 
 app.use('*', cors());
+app.use('/api/*', async (c, next) => {
+  await next();
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+});
 
 const SPECIALIZATIONS = [
   { name: 'Backend', description: 'Server-side APIs, databases, business logic', recommendedModels: ['kimi-k2.5', 'deepseek-v3'] },

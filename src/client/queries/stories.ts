@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UserStory, Bug, StoryHistoryEntry, StoryFilters, BoardStats } from '../types';
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   const json = await res.json();
   return json.data !== undefined ? json.data : json;
@@ -21,6 +21,7 @@ async function mutateJson<T>(url: string, method: string, body?: any): Promise<T
 
 export function useStories(filters?: StoryFilters) {
   const params = new URLSearchParams();
+  params.set('linkedOnly', String(filters?.linkedOnly ?? true));
   if (filters?.status) params.set('status', filters.status);
   if (filters?.assignedTo) params.set('assignedTo', filters.assignedTo);
   if (filters?.priority) params.set('priority', filters.priority);
@@ -100,10 +101,18 @@ export function useSearchStories(query: string) {
   });
 }
 
-export function useBoardStats() {
+export function useBoardStats(filters?: StoryFilters) {
+  const params = new URLSearchParams();
+  params.set('linkedOnly', String(filters?.linkedOnly ?? true));
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.assignedTo) params.set('assignedTo', filters.assignedTo);
+  if (filters?.priority) params.set('priority', filters.priority);
+  if (filters?.sprint) params.set('sprint', filters.sprint);
+  const qs = params.toString();
+
   return useQuery<BoardStats>({
-    queryKey: ['board-stats'],
-    queryFn: () => fetchJson('/api/board/stats'),
+    queryKey: ['board-stats', filters],
+    queryFn: () => fetchJson(`/api/board/stats${qs ? '?' + qs : ''}`),
     refetchInterval: 5000,
   });
 }
