@@ -7,9 +7,7 @@ import { StatusDot } from './components/shared/StatusDot';
 import { KanbanBoardView } from './components/board/KanbanBoard';
 import type { Agent, Team, Task, DelegationStep } from './types';
 
-import MessagingPage from './components/messaging/MessagingPage';
-
-type View = 'orgchart' | 'teams' | 'agents' | 'traces' | 'board' | 'messages';
+type View = 'orgchart' | 'teams' | 'agents' | 'traces' | 'board';
 
 const SPECIALIZATIONS = [
   'Enterprise Architecture', 'Platform Architecture', 'Data Architecture', 'Technology Architecture',
@@ -665,7 +663,6 @@ const tabs: { key: View; label: string; icon: string }[] = [
   { key: 'agents', label: 'Agents', icon: '🤖' },
   { key: 'traces', label: 'Task Traces', icon: '📋' },
   { key: 'board', label: 'Jira Board', icon: '🗂' },
-  { key: 'messages', label: 'Messages', icon: '💬' },
 ];
 
 export default function App() {
@@ -704,7 +701,6 @@ export default function App() {
             {view === 'agents' && <AgentsView agents={agents} teams={teams} />}
             {view === 'traces' && <TaskTracesView tasks={tasks} agents={agents} />}
             {view === 'board' && <KanbanBoardView />}
-            {view === 'messages' && <MessagingPage />}
           </>
         )}
       </main>
