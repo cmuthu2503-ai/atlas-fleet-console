@@ -75,6 +75,8 @@ export interface UserStory {
   bugLoopCount: number;
   bugCount: number;
   parentFeature?: string;
+  taskId?: string;
+  taskCode?: string;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;

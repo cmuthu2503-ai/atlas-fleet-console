@@ -20,6 +20,9 @@ export function StoryCard({ story, onClick }: { story: UserStory; onClick: () =>
       className="rounded-lg p-3 mb-2 cursor-pointer hover:brightness-110 transition-all"
       style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }}
     >
+      {story.taskCode && (
+        <span className="text-[11px] font-mono text-blue-400 mb-0.5 block">{story.taskCode}</span>
+      )}
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <span className="text-sm font-medium text-white leading-tight line-clamp-2">{story.title}</span>
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold shrink-0"

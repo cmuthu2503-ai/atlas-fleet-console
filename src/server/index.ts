@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import agentRoutes from './routes/agents.js';
 import teamRoutes from './routes/teams.js';
 import taskRoutes from './routes/tasks.js';
@@ -45,6 +46,10 @@ app.get('/api/fleet/specializations', (c) => {
 
 // Health check
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
+
+// Serve static files from built client
+app.use('/assets/*', serveStatic({ root: './dist/client' }));
+app.get('*', serveStatic({ root: './dist/client', path: 'index.html' }));
 
 const port = parseInt(process.env.PORT || '3590');
 console.log(`🚀 Atlas Fleet Console API running on http://localhost:${port}`);

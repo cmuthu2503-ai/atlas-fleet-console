@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { userStories, bugs, storyHistory, agents, STORY_STATUSES } from '../db/schema.js';
-import { eq, and, desc, sql, count } from 'drizzle-orm';
+import { userStories, bugs, storyHistory, agents, tasks, STORY_STATUSES } from '../db/schema.js';
+import { eq, and, desc, sql, count, like } from 'drizzle-orm';
 import { z } from 'zod';
 import { v4 as uuid } from 'uuid';
 
@@ -32,7 +32,15 @@ app.get('/', async (c) => {
     if (priority) conditions.push(eq(userStories.priority, priority as any));
     if (sprint) conditions.push(eq(userStories.sprint, sprint));
 
-    let query = db.select().from(userStories).orderBy(desc(userStories.createdAt)).limit(limit).offset(offset);
+    let query = db.select({
+      id: userStories.id, title: userStories.title, description: userStories.description,
+      acceptanceCriteria: userStories.acceptanceCriteria, priority: userStories.priority,
+      status: userStories.status, assignedTo: userStories.assignedTo, team: userStories.team,
+      gate: userStories.gate, sprint: userStories.sprint, bugLoopCount: userStories.bugLoopCount,
+      parentFeature: userStories.parentFeature, taskId: userStories.taskId,
+      createdAt: userStories.createdAt, updatedAt: userStories.updatedAt, completedAt: userStories.completedAt,
+      taskCode: tasks.taskCode,
+    }).from(userStories).leftJoin(tasks, eq(userStories.taskId, tasks.id)).orderBy(desc(userStories.createdAt)).limit(limit).offset(offset);
     const result = conditions.length > 0
       ? await query.where(and(...conditions))
       : await query;
@@ -54,6 +62,40 @@ app.get('/', async (c) => {
     const data = result.map(s => ({
       ...s,
       bugCount: bugCountMap[s.id] || 0,
+      assignedToName: s.assignedTo ? agentMap[s.assignedTo] || null : null,
+    }));
+
+    return c.json({ data });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// GET /api/stories/search
+app.get('/search', async (c) => {
+  try {
+    const q = c.req.query('q') || '';
+    if (!q) return c.json({ data: [] });
+
+    const result = await db.select({
+      id: userStories.id, title: userStories.title, description: userStories.description,
+      acceptanceCriteria: userStories.acceptanceCriteria, priority: userStories.priority,
+      status: userStories.status, assignedTo: userStories.assignedTo, team: userStories.team,
+      gate: userStories.gate, sprint: userStories.sprint, bugLoopCount: userStories.bugLoopCount,
+      parentFeature: userStories.parentFeature, taskId: userStories.taskId,
+      createdAt: userStories.createdAt, updatedAt: userStories.updatedAt, completedAt: userStories.completedAt,
+      taskCode: tasks.taskCode,
+    }).from(userStories)
+      .innerJoin(tasks, eq(userStories.taskId, tasks.id))
+      .where(like(tasks.taskCode, `%${q.toUpperCase()}%`));
+
+    const agentList = await db.select({ id: agents.id, name: agents.name }).from(agents);
+    const agentMap: Record<string, string> = {};
+    agentList.forEach(a => { agentMap[a.id] = a.name; });
+
+    const data = result.map(s => ({
+      ...s,
+      bugCount: 0,
       assignedToName: s.assignedTo ? agentMap[s.assignedTo] || null : null,
     }));
 

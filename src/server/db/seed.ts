@@ -2,45 +2,11 @@ import { db, sqlite } from './client.js';
 import { teams, agents, tasks, delegationSteps, userStories, bugs, storyHistory } from './schema.js';
 import { v4 as uuid } from 'uuid';
 
-// Create tables
+// Drop and recreate tables (seed is destructive)
+sqlite.exec('DROP TABLE IF EXISTS story_history; DROP TABLE IF EXISTS bugs; DROP TABLE IF EXISTS user_stories; DROP TABLE IF EXISTS delegation_steps; DROP TABLE IF EXISTS tasks; DROP TABLE IF EXISTS agents; DROP TABLE IF EXISTS teams;');
+
+// Recreate tables
 sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS user_stories (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    acceptance_criteria TEXT,
-    priority TEXT NOT NULL DEFAULT 'medium',
-    status TEXT NOT NULL DEFAULT 'backlog',
-    assigned_to TEXT REFERENCES agents(id),
-    team TEXT REFERENCES teams(id),
-    gate INTEGER NOT NULL DEFAULT 0,
-    sprint TEXT,
-    bug_loop_count INTEGER NOT NULL DEFAULT 0,
-    parent_feature TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    completed_at INTEGER
-  );
-  CREATE TABLE IF NOT EXISTS bugs (
-    id TEXT PRIMARY KEY,
-    story_id TEXT NOT NULL REFERENCES user_stories(id),
-    title TEXT NOT NULL,
-    description TEXT,
-    severity TEXT NOT NULL DEFAULT 'medium',
-    found_by TEXT REFERENCES agents(id),
-    assigned_to TEXT REFERENCES agents(id),
-    status TEXT NOT NULL DEFAULT 'open',
-    created_at INTEGER NOT NULL,
-    resolved_at INTEGER
-  );
-  CREATE TABLE IF NOT EXISTS story_history (
-    id TEXT PRIMARY KEY,
-    story_id TEXT NOT NULL REFERENCES user_stories(id),
-    from_status TEXT NOT NULL,
-    to_status TEXT NOT NULL,
-    changed_by TEXT,
-    changed_at INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS teams (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -93,10 +59,45 @@ sqlite.exec(`
     created_at INTEGER NOT NULL,
     completed_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS user_stories (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    acceptance_criteria TEXT,
+    priority TEXT NOT NULL DEFAULT 'medium',
+    status TEXT NOT NULL DEFAULT 'backlog',
+    assigned_to TEXT REFERENCES agents(id),
+    team TEXT REFERENCES teams(id),
+    gate INTEGER NOT NULL DEFAULT 0,
+    sprint TEXT,
+    bug_loop_count INTEGER NOT NULL DEFAULT 0,
+    parent_feature TEXT,
+    task_id TEXT REFERENCES tasks(id),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS bugs (
+    id TEXT PRIMARY KEY,
+    story_id TEXT NOT NULL REFERENCES user_stories(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    severity TEXT NOT NULL DEFAULT 'medium',
+    found_by TEXT REFERENCES agents(id),
+    assigned_to TEXT REFERENCES agents(id),
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at INTEGER NOT NULL,
+    resolved_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS story_history (
+    id TEXT PRIMARY KEY,
+    story_id TEXT NOT NULL REFERENCES user_stories(id),
+    from_status TEXT NOT NULL,
+    to_status TEXT NOT NULL,
+    changed_by TEXT,
+    changed_at INTEGER NOT NULL
+  );
 `);
-
-// Clear existing data
-sqlite.exec('DELETE FROM story_history; DELETE FROM bugs; DELETE FROM user_stories; DELETE FROM delegation_steps; DELETE FROM tasks; DELETE FROM agents; DELETE FROM teams;');
 
 const now = Date.now();
 
@@ -127,7 +128,7 @@ db.insert(agents).values([
 const jiraId = uuid();
 
 db.insert(agents).values([
-  { id: jiraId, agentId: 'jira', name: 'Jira', role: 'Program Manager & Scrum Master', persona: 'Relentless coordinator and process enforcer', teamId: ctoTeamId, status: 'online', specialization: 'Program Management', model: 'claude-sonnet-4.6', capabilities: '["coordination","sprint-planning","task-tracking","process-enforcement"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: jiraId, agentId: 'jira', name: 'Jira', role: 'Program Manager & Scrum Master', persona: 'Relentless coordinator and process enforcer', teamId: cpoTeamId, status: 'online', specialization: 'Program Management', model: 'claude-sonnet-4.6', capabilities: '["coordination","sprint-planning","task-tracking","process-enforcement"]', parentAgentId: cpoId, createdAt: now, updatedAt: now },
 ]).run();
 
 // CTO Team agents
@@ -135,14 +136,14 @@ const linusId = uuid(), pixelId = uuid(), adaId = uuid(), terraformId = uuid();
 const sentinelId = uuid(), turingId = uuid(), piperId = uuid(), vectorId = uuid();
 
 db.insert(agents).values([
-  { id: linusId, agentId: 'linus', name: 'Linus', role: 'Backend Engineer', persona: 'Methodical backend specialist', teamId: ctoTeamId, status: 'online', specialization: 'Backend', model: 'kimi-k2.5', capabilities: '["api-design","databases","node.js","typescript"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: pixelId, agentId: 'pixel', name: 'Pixel', role: 'Frontend Engineer', persona: 'Creative UI builder', teamId: ctoTeamId, status: 'online', specialization: 'Frontend', model: 'kimi-k2.5', capabilities: '["react","tailwind","ui-design"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: adaId, agentId: 'ada', name: 'Ada', role: 'Security Engineer', persona: 'Security-first mindset', teamId: ctoTeamId, status: 'idle', specialization: 'Security', model: 'kimi-k2.5', capabilities: '["security-audit","penetration-testing","compliance"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: terraformId, agentId: 'terraform', name: 'Terraform', role: 'DevOps Engineer', persona: 'Infrastructure automation expert', teamId: ctoTeamId, status: 'idle', specialization: 'DevOps', model: 'deepseek-v3', capabilities: '["ci-cd","docker","kubernetes","terraform"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: sentinelId, agentId: 'sentinel', name: 'Sentinel', role: 'Quality Lead', persona: 'Quality guardian', teamId: ctoTeamId, status: 'idle', specialization: 'QA', model: 'kimi-k2.5', capabilities: '["testing","automation","quality-assurance"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: turingId, agentId: 'turing', name: 'Turing', role: 'AI/ML Engineer', persona: 'AI research enthusiast', teamId: ctoTeamId, status: 'idle', specialization: 'AI/ML', model: 'kimi-k2.5', capabilities: '["machine-learning","nlp","model-training"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: piperId, agentId: 'piper', name: 'Piper', role: 'Data Engineer', persona: 'Data pipeline architect', teamId: ctoTeamId, status: 'idle', specialization: 'Data Engineering', model: 'deepseek-v3', capabilities: '["etl","data-pipelines","analytics"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
-  { id: vectorId, agentId: 'vector', name: 'Vector', role: 'Retrieval Engineer', persona: 'Search and retrieval specialist', teamId: ctoTeamId, status: 'idle', specialization: 'Retrieval', model: 'kimi-k2.5', capabilities: '["vector-search","rag","embeddings"]', parentAgentId: jiraId, createdAt: now, updatedAt: now },
+  { id: linusId, agentId: 'linus', name: 'Linus', role: 'Backend Engineer', persona: 'Methodical backend specialist', teamId: ctoTeamId, status: 'online', specialization: 'Backend', model: 'kimi-k2.5', capabilities: '["api-design","databases","node.js","typescript"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: pixelId, agentId: 'pixel', name: 'Pixel', role: 'Frontend Engineer', persona: 'Creative UI builder', teamId: ctoTeamId, status: 'online', specialization: 'Frontend', model: 'kimi-k2.5', capabilities: '["react","tailwind","ui-design"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: adaId, agentId: 'ada', name: 'Ada', role: 'Security Engineer', persona: 'Security-first mindset', teamId: ctoTeamId, status: 'idle', specialization: 'Security', model: 'kimi-k2.5', capabilities: '["security-audit","penetration-testing","compliance"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: terraformId, agentId: 'terraform', name: 'Terraform', role: 'DevOps Engineer', persona: 'Infrastructure automation expert', teamId: ctoTeamId, status: 'idle', specialization: 'DevOps', model: 'deepseek-v3', capabilities: '["ci-cd","docker","kubernetes","terraform"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: sentinelId, agentId: 'sentinel', name: 'Sentinel', role: 'Quality Lead', persona: 'Quality guardian', teamId: ctoTeamId, status: 'idle', specialization: 'QA', model: 'kimi-k2.5', capabilities: '["testing","automation","quality-assurance"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: turingId, agentId: 'turing', name: 'Turing', role: 'AI/ML Engineer', persona: 'AI research enthusiast', teamId: ctoTeamId, status: 'idle', specialization: 'AI/ML', model: 'kimi-k2.5', capabilities: '["machine-learning","nlp","model-training"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: piperId, agentId: 'piper', name: 'Piper', role: 'Data Engineer', persona: 'Data pipeline architect', teamId: ctoTeamId, status: 'idle', specialization: 'Data Engineering', model: 'deepseek-v3', capabilities: '["etl","data-pipelines","analytics"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
+  { id: vectorId, agentId: 'vector', name: 'Vector', role: 'Retrieval Engineer', persona: 'Search and retrieval specialist', teamId: ctoTeamId, status: 'idle', specialization: 'Retrieval', model: 'kimi-k2.5', capabilities: '["vector-search","rag","embeddings"]', parentAgentId: ctoId, createdAt: now, updatedAt: now },
 ]).run();
 
 // Technology Consulting Office agents (report directly to CTO)
@@ -166,20 +167,52 @@ db.insert(agents).values([
 
 // Sample tasks
 const task1Id = uuid(), task2Id = uuid(), task3Id = uuid();
+const task4Id = uuid(), task5Id = uuid(), task6Id = uuid(), task7Id = uuid(), task8Id = uuid();
 
 db.insert(tasks).values([
   { id: task1Id, taskCode: 'T-001', title: 'Design Fleet API Schema', description: 'Design the REST API schema for the fleet management console', status: 'completed', priority: 'high', assignedAgentId: linusId, createdByAgentId: ctoId, createdAt: now - 86400000, updatedAt: now, completedAt: now },
   { id: task2Id, taskCode: 'T-002', title: 'Build Agent Dashboard UI', description: 'Create the frontend dashboard for agent management', status: 'in_progress', priority: 'high', assignedAgentId: pixelId, createdByAgentId: ctoId, createdAt: now - 43200000, updatedAt: now },
   { id: task3Id, taskCode: 'T-003', title: 'Security Audit - API Endpoints', description: 'Review all API endpoints for security vulnerabilities', status: 'pending', priority: 'medium', assignedAgentId: adaId, createdByAgentId: ctoId, parentTaskId: task1Id, createdAt: now, updatedAt: now },
+  { id: task4Id, taskCode: 'T-004', title: 'Setup CI/CD Pipeline', description: 'Docker-based deployment pipeline with staging and production', status: 'in_progress', priority: 'high', assignedAgentId: terraformId, createdByAgentId: ctoId, createdAt: now - 64800000, updatedAt: now },
+  { id: task5Id, taskCode: 'T-005', title: 'RAG Knowledge Base Integration', description: 'Vector search integration for agent knowledge retrieval', status: 'pending', priority: 'medium', assignedAgentId: vectorId, createdByAgentId: ctoId, createdAt: now - 21600000, updatedAt: now },
+  { id: task6Id, taskCode: 'T-006', title: 'Task Delegation Tracing', description: 'Visual trace of task delegation chain across agents', status: 'in_progress', priority: 'medium', assignedAgentId: pixelId, createdByAgentId: ctoId, createdAt: now - 129600000, updatedAt: now },
+  { id: task7Id, taskCode: 'T-007', title: 'Product Roadmap Dashboard', description: 'Visual roadmap for product features and milestones', status: 'pending', priority: 'low', assignedAgentId: novaId, createdByAgentId: cpoId, createdAt: now - 10800000, updatedAt: now },
+  { id: task8Id, taskCode: 'T-008', title: 'ML Model Training Pipeline', description: 'Automated model training with experiment tracking', status: 'completed', priority: 'medium', assignedAgentId: turingId, createdByAgentId: ctoId, createdAt: now - 259200000, updatedAt: now, completedAt: now - 86400000 },
 ]).run();
 
 // Delegation steps
 db.insert(delegationSteps).values([
-  { id: uuid(), taskId: task1Id, fromAgentId: ceoId, toAgentId: ctoId, action: 'assign', message: 'Build the fleet management API', status: 'completed', createdAt: now - 86400000, completedAt: now - 82800000 },
-  { id: uuid(), taskId: task1Id, fromAgentId: ctoId, toAgentId: linusId, action: 'delegate', message: 'Design and implement the API schema', status: 'completed', createdAt: now - 82800000, completedAt: now },
+  // T-001: Design Fleet API Schema
+  { id: uuid(), taskId: task1Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'Build the fleet management API', status: 'completed', createdAt: now - 86400000, completedAt: now - 85800000 },
+  { id: uuid(), taskId: task1Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'Engineering task — delegate to CTO', status: 'completed', createdAt: now - 85800000, completedAt: now - 85200000 },
+  { id: uuid(), taskId: task1Id, fromAgentId: ctoId, toAgentId: linusId, action: 'delegate', message: 'Design and implement the API schema', status: 'completed', createdAt: now - 85200000, completedAt: now },
   { id: uuid(), taskId: task1Id, fromAgentId: linusId, toAgentId: ctoId, action: 'complete', message: 'API schema designed and implemented', status: 'completed', createdAt: now, completedAt: now },
-  { id: uuid(), taskId: task2Id, fromAgentId: ctoId, toAgentId: pixelId, action: 'delegate', message: 'Build the dashboard UI based on API spec', status: 'in_progress', createdAt: now - 43200000 },
+  // T-002: Build Agent Dashboard UI
+  { id: uuid(), taskId: task2Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'Need agent dashboard for fleet visibility', status: 'completed', createdAt: now - 43200000, completedAt: now - 43000000 },
+  { id: uuid(), taskId: task2Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'Frontend task for engineering', status: 'completed', createdAt: now - 43000000, completedAt: now - 42800000 },
+  { id: uuid(), taskId: task2Id, fromAgentId: ctoId, toAgentId: pixelId, action: 'delegate', message: 'Build the dashboard UI based on API spec', status: 'in_progress', createdAt: now - 42800000 },
+  // T-003: Security Audit
   { id: uuid(), taskId: task3Id, fromAgentId: ctoId, toAgentId: adaId, action: 'assign', message: 'Audit API endpoints after T-001 completion', status: 'pending', createdAt: now },
+  // T-004: CI/CD Pipeline
+  { id: uuid(), taskId: task4Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'We need automated deployments ASAP', status: 'completed', createdAt: now - 64800000, completedAt: now - 64600000 },
+  { id: uuid(), taskId: task4Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'DevOps infrastructure task', status: 'completed', createdAt: now - 64600000, completedAt: now - 64400000 },
+  { id: uuid(), taskId: task4Id, fromAgentId: ctoId, toAgentId: terraformId, action: 'delegate', message: 'Setup Docker-based CI/CD with staging', status: 'in_progress', createdAt: now - 64400000 },
+  // T-005: RAG Knowledge Base
+  { id: uuid(), taskId: task5Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'AI knowledge retrieval feature', status: 'completed', createdAt: now - 21600000, completedAt: now - 21400000 },
+  { id: uuid(), taskId: task5Id, fromAgentId: ctoId, toAgentId: vectorId, action: 'delegate', message: 'Implement vector search for agent knowledge base', status: 'pending', createdAt: now - 21400000 },
+  // T-006: Task Delegation Tracing
+  { id: uuid(), taskId: task6Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'Need visibility into delegation chains', status: 'completed', createdAt: now - 129600000, completedAt: now - 129400000 },
+  { id: uuid(), taskId: task6Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'UI feature for delegation tracing', status: 'completed', createdAt: now - 129400000, completedAt: now - 129200000 },
+  { id: uuid(), taskId: task6Id, fromAgentId: ctoId, toAgentId: pixelId, action: 'delegate', message: 'Build delegation chain visualization', status: 'in_progress', createdAt: now - 129200000 },
+  // T-007: Product Roadmap Dashboard
+  { id: uuid(), taskId: task7Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'Product roadmap visibility for stakeholders', status: 'completed', createdAt: now - 10800000, completedAt: now - 10600000 },
+  { id: uuid(), taskId: task7Id, fromAgentId: cooId, toAgentId: cpoId, action: 'delegate', message: 'Product team deliverable', status: 'completed', createdAt: now - 10600000, completedAt: now - 10400000 },
+  { id: uuid(), taskId: task7Id, fromAgentId: cpoId, toAgentId: novaId, action: 'delegate', message: 'Design and build roadmap dashboard', status: 'pending', createdAt: now - 10400000 },
+  // T-008: ML Model Training Pipeline
+  { id: uuid(), taskId: task8Id, fromAgentId: ceoId, toAgentId: cooId, action: 'assign', message: 'Automate ML model training', status: 'completed', createdAt: now - 259200000, completedAt: now - 259000000 },
+  { id: uuid(), taskId: task8Id, fromAgentId: cooId, toAgentId: ctoId, action: 'delegate', message: 'AI/ML engineering task', status: 'completed', createdAt: now - 259000000, completedAt: now - 258800000 },
+  { id: uuid(), taskId: task8Id, fromAgentId: ctoId, toAgentId: turingId, action: 'delegate', message: 'Build automated training pipeline with MLflow', status: 'completed', createdAt: now - 258800000, completedAt: now - 86400000 },
+  { id: uuid(), taskId: task8Id, fromAgentId: turingId, toAgentId: ctoId, action: 'complete', message: 'Pipeline deployed with MLflow integration', status: 'completed', createdAt: now - 86400000, completedAt: now - 86400000 },
 ]).run();
 
 // ─── Sample User Stories ───
@@ -187,14 +220,14 @@ const story1 = uuid(), story2 = uuid(), story3 = uuid(), story4 = uuid();
 const story5 = uuid(), story6 = uuid(), story7 = uuid(), story8 = uuid();
 
 db.insert(userStories).values([
-  { id: story1, title: 'Design Fleet API Schema', description: 'Design REST API schema for fleet management console', acceptanceCriteria: 'All CRUD endpoints documented and typed', priority: 'high', status: 'done', assignedTo: linusId, team: ctoTeamId, gate: 7, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'Fleet Console', createdAt: now - 172800000, updatedAt: now, completedAt: now - 3600000 },
-  { id: story2, title: 'Build Agent Dashboard UI', description: 'Create frontend dashboard for agent management with status indicators', acceptanceCriteria: 'Agent cards with status, model badges, team grouping', priority: 'high', status: 'qa_testing', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'Fleet Console', createdAt: now - 86400000, updatedAt: now },
-  { id: story3, title: 'Implement Security Audit Pipeline', description: 'Automated security scanning for all API endpoints', acceptanceCriteria: 'Zero critical vulnerabilities, automated CI check', priority: 'critical', status: 'in_progress', assignedTo: adaId, team: ctoTeamId, gate: 1, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Security', createdAt: now - 43200000, updatedAt: now },
-  { id: story4, title: 'Setup CI/CD Pipeline', description: 'Docker-based deployment pipeline with staging and production', acceptanceCriteria: 'Auto-deploy on merge to main, rollback capability', priority: 'high', status: 'code_review', assignedTo: terraformId, team: ctoTeamId, gate: 2, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'DevOps', createdAt: now - 64800000, updatedAt: now },
-  { id: story5, title: 'RAG Knowledge Base Integration', description: 'Vector search integration for agent knowledge retrieval', acceptanceCriteria: 'Sub-200ms retrieval, >0.85 relevance score', priority: 'medium', status: 'backlog', assignedTo: vectorId, team: ctoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'AI Platform', createdAt: now - 21600000, updatedAt: now },
-  { id: story6, title: 'Task Delegation Tracing', description: 'Visual trace of task delegation chain across agents', acceptanceCriteria: 'Interactive delegation chain view with status colors', priority: 'medium', status: 'bug_fix', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 2, parentFeature: 'Fleet Console', createdAt: now - 129600000, updatedAt: now },
-  { id: story7, title: 'Product Roadmap Dashboard', description: 'Visual roadmap for product features and milestones', acceptanceCriteria: 'Timeline view with drag-and-drop milestone management', priority: 'low', status: 'created', assignedTo: novaId, team: cpoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Product', createdAt: now - 10800000, updatedAt: now },
-  { id: story8, title: 'ML Model Training Pipeline', description: 'Automated model training with experiment tracking', acceptanceCriteria: 'MLflow integration, auto hyperparameter tuning', priority: 'medium', status: 'ready_to_deploy', assignedTo: turingId, team: ctoTeamId, gate: 4, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'AI Platform', createdAt: now - 259200000, updatedAt: now },
+  { id: story1, title: 'Design Fleet API Schema', description: 'Design REST API schema for fleet management console', acceptanceCriteria: 'All CRUD endpoints documented and typed', priority: 'high', status: 'done', assignedTo: linusId, team: ctoTeamId, gate: 7, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'Fleet Console', taskId: task1Id, createdAt: now - 172800000, updatedAt: now, completedAt: now - 3600000 },
+  { id: story2, title: 'Build Agent Dashboard UI', description: 'Create frontend dashboard for agent management with status indicators', acceptanceCriteria: 'Agent cards with status, model badges, team grouping', priority: 'high', status: 'qa_testing', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'Fleet Console', taskId: task2Id, createdAt: now - 86400000, updatedAt: now },
+  { id: story3, title: 'Implement Security Audit Pipeline', description: 'Automated security scanning for all API endpoints', acceptanceCriteria: 'Zero critical vulnerabilities, automated CI check', priority: 'critical', status: 'in_progress', assignedTo: adaId, team: ctoTeamId, gate: 1, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Security', taskId: task3Id, createdAt: now - 43200000, updatedAt: now },
+  { id: story4, title: 'Setup CI/CD Pipeline', description: 'Docker-based deployment pipeline with staging and production', acceptanceCriteria: 'Auto-deploy on merge to main, rollback capability', priority: 'high', status: 'code_review', assignedTo: terraformId, team: ctoTeamId, gate: 2, sprint: 'Sprint-1', bugLoopCount: 0, parentFeature: 'DevOps', taskId: task4Id, createdAt: now - 64800000, updatedAt: now },
+  { id: story5, title: 'RAG Knowledge Base Integration', description: 'Vector search integration for agent knowledge retrieval', acceptanceCriteria: 'Sub-200ms retrieval, >0.85 relevance score', priority: 'medium', status: 'backlog', assignedTo: vectorId, team: ctoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'AI Platform', taskId: task5Id, createdAt: now - 21600000, updatedAt: now },
+  { id: story6, title: 'Task Delegation Tracing', description: 'Visual trace of task delegation chain across agents', acceptanceCriteria: 'Interactive delegation chain view with status colors', priority: 'medium', status: 'bug_fix', assignedTo: pixelId, team: ctoTeamId, gate: 3, sprint: 'Sprint-1', bugLoopCount: 2, parentFeature: 'Fleet Console', taskId: task6Id, createdAt: now - 129600000, updatedAt: now },
+  { id: story7, title: 'Product Roadmap Dashboard', description: 'Visual roadmap for product features and milestones', acceptanceCriteria: 'Timeline view with drag-and-drop milestone management', priority: 'low', status: 'created', assignedTo: novaId, team: cpoTeamId, gate: 0, sprint: 'Sprint-2', bugLoopCount: 0, parentFeature: 'Product', taskId: task7Id, createdAt: now - 10800000, updatedAt: now },
+  { id: story8, title: 'ML Model Training Pipeline', description: 'Automated model training with experiment tracking', acceptanceCriteria: 'MLflow integration, auto hyperparameter tuning', priority: 'medium', status: 'ready_to_deploy', assignedTo: turingId, team: ctoTeamId, gate: 4, sprint: 'Sprint-1', bugLoopCount: 1, parentFeature: 'AI Platform', taskId: task8Id, createdAt: now - 259200000, updatedAt: now },
 ]).run();
 
 // Sample bugs
@@ -218,4 +251,4 @@ db.insert(storyHistory).values([
   { id: uuid(), storyId: story6, fromStatus: 'qa_testing', toStatus: 'bug_fix', changedBy: 'Sentinel', changedAt: now - 43200000 },
 ]).run();
 
-console.log('✅ Seed complete: 4 teams, 20 agents, 3 tasks, 5 delegation steps, 8 stories, 4 bugs, 9 history entries');
+console.log('✅ Seed complete: 4 teams, 20 agents, 8 tasks, 22 delegation steps, 8 stories, 4 bugs, 9 history entries');

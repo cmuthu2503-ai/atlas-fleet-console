@@ -63,6 +63,7 @@ export const userStories = sqliteTable('user_stories', {
   sprint: text('sprint'),
   bugLoopCount: integer('bug_loop_count').default(0).notNull(),
   parentFeature: text('parent_feature'),
+  taskId: text('task_id').references(() => tasks.id),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   completedAt: integer('completed_at'),

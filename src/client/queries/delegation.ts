@@ -13,7 +13,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useDelegationSteps(taskId: string | null) {
   return useQuery<DelegationStep[]>({
     queryKey: ['delegation', taskId],
-    queryFn: () => fetchJson(`${BASE}/tasks/${taskId}/delegation`),
+    queryFn: () => fetchJson(`${BASE}/tasks/${taskId}/delegation-steps`),
     enabled: !!taskId,
   });
 }

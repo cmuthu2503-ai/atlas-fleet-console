@@ -10,7 +10,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: true as any,
     proxy: {
-      '/api/fleet': {
+      '/api': {
         target: 'http://localhost:3590',
         changeOrigin: true,
       },

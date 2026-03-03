@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { UserStory, Bug, StoryHistoryEntry, StoryStatus, Agent } from '../../types';
 import { useBugs, useCreateBug, useUpdateBug, useStoryHistory } from '../../queries/stories';
+import { useDelegationSteps } from '../../queries/delegation';
 
 const STATUSES: StoryStatus[] = [
   'backlog', 'created', 'in_progress', 'code_review', 'qa_testing',
@@ -88,9 +89,13 @@ export function StoryDetailModal({ story, onClose, agents }: {
   const updateBug = useUpdateBug();
   const [showBugForm, setShowBugForm] = useState(false);
   const [bugForm, setBugForm] = useState({ title: '', description: '', severity: 'medium' });
-  const [tab, setTab] = useState<'details' | 'bugs' | 'history'>('details');
+  const [tab, setTab] = useState<'details' | 'bugs' | 'history' | 'delegation'>('details');
+  const { data: delegationSteps = [] } = useDelegationSteps(story?.taskId || null);
 
   if (!story) return null;
+
+  const agentMap: Record<string, string> = {};
+  agents.forEach(a => { agentMap[a.id] = a.name; });
 
   const handleAddBug = () => {
     if (!bugForm.title) return;
@@ -104,7 +109,10 @@ export function StoryDetailModal({ story, onClose, agents }: {
       <div className="rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6" style={{ background: '#1e1e24', border: '1px solid #3a3a4a' }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">{story.title}</h3>
+            <div className="flex items-center gap-2">
+              {story.taskCode && <span className="text-sm font-mono px-2 py-0.5 rounded bg-blue-900/30 text-blue-400 font-semibold">{story.taskCode}</span>}
+              <h3 className="text-lg font-semibold text-white">{story.title}</h3>
+            </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#2a2a35', color: '#c4a04a' }}>G:{story.gate}</span>
               <span className="text-xs text-gray-500">{story.status.replace(/_/g, ' ')}</span>
@@ -117,11 +125,11 @@ export function StoryDetailModal({ story, onClose, agents }: {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-4 rounded-lg p-1" style={{ background: '#111117' }}>
-          {(['details', 'bugs', 'history'] as const).map(t => (
+          {(['details', 'bugs', 'history', 'delegation'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-3 py-1 rounded text-sm ${tab === t ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
               style={tab === t ? { background: '#2a2a35' } : {}}>
-              {t === 'bugs' ? `🐛 Bugs (${storyBugs.length})` : t === 'history' ? `📜 History (${history.length})` : '📋 Details'}
+              {t === 'bugs' ? `🐛 Bugs (${storyBugs.length})` : t === 'history' ? `📜 History (${history.length})` : t === 'delegation' ? '🔗 Delegation' : '📋 Details'}
             </button>
           ))}
         </div>
@@ -201,6 +209,48 @@ export function StoryDetailModal({ story, onClose, agents }: {
               </div>
             ))}
             {history.length === 0 && <p className="text-sm text-gray-600 italic">No history yet</p>}
+          </div>
+        )}
+
+        {tab === 'delegation' && (
+          <div>
+            {story.taskCode && (
+              <div className="mb-3 text-xs text-gray-500">Task: <span className="font-mono text-blue-400">{story.taskCode}</span></div>
+            )}
+            {!story.taskId && <p className="text-sm text-gray-600 italic">No linked task</p>}
+            {story.taskId && delegationSteps.length === 0 && <p className="text-sm text-gray-600 italic">No delegation steps</p>}
+            <div className="space-y-0">
+              {delegationSteps.map((step, i) => {
+                const fromName = agentMap[step.fromAgentId] || step.fromAgentId;
+                const toName = agentMap[step.toAgentId] || step.toAgentId;
+                const actionColors: Record<string, string> = {
+                  assign: 'bg-purple-900/30 text-purple-400', delegate: 'bg-blue-900/30 text-blue-400',
+                  review: 'bg-yellow-900/30 text-yellow-400', approve: 'bg-green-900/30 text-green-400',
+                  reject: 'bg-red-900/30 text-red-400', complete: 'bg-emerald-900/30 text-emerald-400',
+                };
+                const statusDot: Record<string, string> = {
+                  completed: 'bg-green-400', in_progress: 'bg-blue-400', pending: 'bg-gray-500', failed: 'bg-red-400',
+                };
+                return (
+                  <div key={step.id} className="flex items-start gap-3 py-2" style={i < delegationSteps.length - 1 ? { borderBottom: '1px solid #2a2a35' } : {}}>
+                    <div className="flex flex-col items-center mt-1">
+                      <div className={`w-2.5 h-2.5 rounded-full ${statusDot[step.status] || 'bg-gray-500'}`} />
+                      {i < delegationSteps.length - 1 && <div className="w-px h-6 bg-gray-700 mt-1" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-white font-medium">{fromName}</span>
+                        <span className="text-gray-600">→</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${actionColors[step.action] || 'bg-gray-800 text-gray-400'}`}>{step.action}</span>
+                        <span className="text-gray-600">→</span>
+                        <span className="text-white font-medium">{toName}</span>
+                      </div>
+                      {step.message && <p className="text-xs text-gray-500 mt-0.5 truncate">{step.message}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

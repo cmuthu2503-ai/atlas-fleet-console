@@ -92,6 +92,14 @@ export function useStoryHistory(storyId: string | null) {
   });
 }
 
+export function useSearchStories(query: string) {
+  return useQuery<UserStory[]>({
+    queryKey: ['stories-search', query],
+    queryFn: () => fetchJson(`/api/stories/search?q=${encodeURIComponent(query)}`),
+    enabled: query.length >= 1,
+  });
+}
+
 export function useBoardStats() {
   return useQuery<BoardStats>({
     queryKey: ['board-stats'],
