@@ -28,7 +28,7 @@ export function KanbanBoardView() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     await queryClient.invalidateQueries({ queryKey: ['stories'] });
-    await queryClient.invalidateQueries({ queryKey: ['boardStats'] });
+    await queryClient.invalidateQueries({ queryKey: ['board-stats'] });
     setTimeout(() => setIsRefreshing(false), 500);
   }, [queryClient]);
 
