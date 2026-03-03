@@ -120,15 +120,25 @@ export function useAgentUsage(id: string | null) {
   });
 }
 
+export type AgentUsage = {
+  totalTokens: number;
+  cost: number;
+  tokens24h: number;
+  tokens7d: number;
+  tokensAllTime: number;
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export function useAllAgentUsages(agentIds: string[]) {
-  return useQuery<Record<string, { totalTokens: number; cost: number }>>({
+  return useQuery<Record<string, AgentUsage>>({
     queryKey: ['allAgentUsages', agentIds.join(',')],
     queryFn: async () => {
-      const results: Record<string, { totalTokens: number; cost: number }> = {};
+      const results: Record<string, AgentUsage> = {};
       await Promise.all(
         agentIds.map(async (id) => {
           try {
-            const data = await fetchJson<{ totalTokens: number; cost: number }>(`${BASE}/agents/${id}/usage`);
+            const data = await fetchJson<AgentUsage>(`${BASE}/agents/${id}/usage`);
             results[id] = data;
           } catch { /* skip */ }
         })

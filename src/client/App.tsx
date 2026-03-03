@@ -344,6 +344,16 @@ function ConfirmDialog({ open, onClose, onConfirm, message }: { open: boolean; o
 }
 
 // ─── Unified Fleet View (Two-Panel: Teams Sidebar + Agents Table) ───
+// ─── Stat Card ───
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg px-5 py-4 flex-1 min-w-[140px]" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
+      <div className="text-[12px] font-medium" style={{ color: '#777' }}>{label}</div>
+      <div className="text-[20px] font-bold text-white mt-1">{value}</div>
+    </div>
+  );
+}
+
 function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
   const createAgent = useCreateAgent();
   const deleteAgent = useDeleteAgent();
@@ -354,6 +364,7 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
   const disableTeam = useDisableTeam();
   const enableTeam = useEnableTeam();
 
+  const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
@@ -396,8 +407,21 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
     return String(n);
   };
 
+  // Fleet summary totals
+  const totalTokens24h = useMemo(() => {
+    if (!usageData) return 0;
+    return Object.values(usageData).reduce((sum, u) => sum + (u.tokens24h || 0), 0);
+  }, [usageData]);
+
   return (
     <>
+      {/* Fleet Summary Cards */}
+      <div className="flex gap-4 mb-5">
+        <StatCard label="Teams" value={String(teams.length)} />
+        <StatCard label="Agents" value={String(agents.length)} />
+        <StatCard label="Tokens / 24h" value={formatTokens(totalTokens24h)} />
+      </div>
+
       <div className="flex gap-5 min-h-[calc(100vh-140px)]">
         {/* ── Teams Sidebar (30%) ── */}
         <div className="w-[30%] shrink-0">
@@ -469,10 +493,14 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
               <tbody>
                 {filteredAgents.map(a => {
                   const usage = usageData?.[a.id];
+                  const isExpanded = expandedAgentId === a.id;
                   return (
-                    <tr key={a.id} className="group hover:bg-white/[0.03] transition-colors" style={{ borderBottom: '1px solid #2a2a35' }}>
+                    <React.Fragment key={a.id}>
+                    <tr className="group hover:bg-white/[0.03] transition-colors cursor-pointer" style={{ borderBottom: isExpanded ? 'none' : '1px solid #2a2a35' }}
+                      onClick={() => setExpandedAgentId(isExpanded ? null : a.id)}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <span style={{ color: '#c4a04a', fontSize: 11 }}>{isExpanded ? '▾' : '▸'}</span>
                           <Avatar agentId={a.agentId} size={28} />
                           <span className="font-medium text-white">{a.name}</span>
                         </div>
@@ -494,15 +522,39 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100">
-                          <button onClick={() => a.status === 'disabled' ? enableAgent.mutate(a.id) : disableAgent.mutate(a.id)}
+                          <button onClick={(e) => { e.stopPropagation(); a.status === 'disabled' ? enableAgent.mutate(a.id) : disableAgent.mutate(a.id); }}
                             className="text-gray-500 hover:text-yellow-400 text-xs" title="Toggle">
                             {a.status === 'disabled' ? '▶' : '⏸'}
                           </button>
-                          <button onClick={() => setConfirmDeleteAgent(a.id)}
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteAgent(a.id); }}
                             className="text-gray-500 hover:text-red-400 text-xs" title="Delete">🗑</button>
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && usage && (
+                      <tr style={{ borderBottom: '1px solid #2a2a35' }}>
+                        <td colSpan={8} className="px-4 pb-4 pt-1" style={{ background: '#1a1a20' }}>
+                          <div className="flex gap-3 mb-2">
+                            <div className="rounded-lg px-4 py-3" style={{ background: '#1e1e24', border: '1px solid #2a2a35', minWidth: 120 }}>
+                              <div className="text-[12px] font-medium" style={{ color: '#777' }}>24h</div>
+                              <div className="text-[18px] font-bold text-white mt-0.5">{(usage.tokens24h || 0).toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-lg px-4 py-3" style={{ background: '#1e1e24', border: '1px solid #2a2a35', minWidth: 120 }}>
+                              <div className="text-[12px] font-medium" style={{ color: '#777' }}>7d</div>
+                              <div className="text-[18px] font-bold text-white mt-0.5">{(usage.tokens7d || 0).toLocaleString()}</div>
+                            </div>
+                            <div className="rounded-lg px-4 py-3" style={{ background: '#1e1e24', border: '1px solid #2a2a35', minWidth: 120 }}>
+                              <div className="text-[12px] font-medium" style={{ color: '#777' }}>All-Time</div>
+                              <div className="text-[18px] font-bold text-white mt-0.5">{formatTokens(usage.tokensAllTime || 0)}</div>
+                            </div>
+                          </div>
+                          <div className="text-[12px]" style={{ color: '#666' }}>
+                            Input / Output: {(usage.inputTokens || 0).toLocaleString()} / {(usage.outputTokens || 0).toLocaleString()}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
                 {filteredAgents.length === 0 && (
