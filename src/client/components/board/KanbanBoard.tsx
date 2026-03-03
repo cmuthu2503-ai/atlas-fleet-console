@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { UserStory, StoryStatus, StoryFilters, Agent } from '../../types';
 import { useStories, useCreateStory, useUpdateStory, useBoardStats, useSearchStories } from '../../queries/stories';
 import { useAgents } from '../../queries/agents';
@@ -20,6 +21,16 @@ export function KanbanBoardView() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ['stories'] });
+    await queryClient.invalidateQueries({ queryKey: ['boardStats'] });
+    setTimeout(() => setIsRefreshing(false), 500);
+  }, [queryClient]);
 
   const { data: stories = [] } = useStories(filters);
   const { data: searchResults = [] } = useSearchStories(debouncedSearch);
@@ -56,7 +67,25 @@ export function KanbanBoardView() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">📋 Jira Board</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-white">📋 Jira Board</h2>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh tasks from API"
+            className="px-3 py-1.5 text-sm rounded-lg font-medium transition-all"
+            style={{
+              background: isRefreshing ? '#4b5563' : '#3b82f6',
+              color: '#fff',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              opacity: isRefreshing ? 0.7 : 1,
+            }}
+          >
+            <span style={{ display: 'inline-block', animation: isRefreshing ? 'refresh-spin 1s linear infinite' : 'none' }}>🔄</span>
+            {' '}{isRefreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <style>{`@keyframes refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <input
