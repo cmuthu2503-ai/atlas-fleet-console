@@ -385,11 +385,29 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
     return counts;
   }, [agents]);
 
-  // Filtered agents
-  const filteredAgents = useMemo(() => {
-    if (!selectedTeamId) return agents;
-    return agents.filter(a => a.teamId === selectedTeamId);
-  }, [agents, selectedTeamId]);
+  // Find team lead for the selected team
+  const findTeamLead = (teamName: string): Agent | undefined => {
+    const nameLC = teamName.toLowerCase();
+    const match = nameLC.match(/^(\w+)\s+team$/);
+    if (match) return agents.find(a => a.agentId === match[1]);
+    // Try matching agentId directly (e.g. "COO" → agentId "coo")
+    return agents.find(a => a.agentId === nameLC || a.role.toLowerCase() === nameLC);
+  };
+
+  // Filtered agents with lead at top
+  const { filteredAgents, teamLead } = useMemo(() => {
+    if (!selectedTeamId) return { filteredAgents: agents, teamLead: undefined };
+    const teamMembers = agents.filter(a => a.teamId === selectedTeamId);
+    const selectedTeam = teams.find(t => t.id === selectedTeamId);
+    if (!selectedTeam) return { filteredAgents: teamMembers, teamLead: undefined };
+
+    const lead = findTeamLead(selectedTeam.name);
+    if (!lead) return { filteredAgents: teamMembers, teamLead: undefined };
+
+    // Lead may or may not be in this team's members; ensure they appear first
+    const membersWithoutLead = teamMembers.filter(a => a.id !== lead.id);
+    return { filteredAgents: [lead, ...membersWithoutLead], teamLead: lead };
+  }, [agents, teams, selectedTeamId]);
 
   // Team name map
   const teamNameMap = useMemo(() => {
@@ -471,6 +489,11 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
             <h2 className="text-lg font-semibold text-white">
               {selectedTeamId ? teamNameMap[selectedTeamId] || 'Team' : 'All Agents'}
               <span className="text-gray-500 font-normal ml-2">({filteredAgents.length})</span>
+              {selectedTeamId && usageData && (
+                <span className="text-gray-400 font-normal ml-2">
+                  — {formatTokens(filteredAgents.reduce((sum, a) => sum + (usageData[a.id]?.totalTokens || 0), 0))} tokens
+                </span>
+              )}
             </h2>
             <button onClick={() => { setAgentForm(f => ({ ...f, teamId: selectedTeamId || '' })); setShowCreateAgent(true); }}
               className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">+ Add Agent</button>
@@ -491,12 +514,14 @@ function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredAgents.map(a => {
+                {filteredAgents.map((a, idx) => {
                   const usage = usageData?.[a.id];
                   const isExpanded = expandedAgentId === a.id;
+                  const isLead = teamLead && a.id === teamLead.id;
+                  const showDivider = isLead && filteredAgents.length > 1;
                   return (
                     <React.Fragment key={a.id}>
-                    <tr className="group hover:bg-white/[0.03] transition-colors cursor-pointer" style={{ borderBottom: isExpanded ? 'none' : '1px solid #2a2a35' }}
+                    <tr className="group hover:bg-white/[0.03] transition-colors cursor-pointer" style={{ borderBottom: isExpanded ? 'none' : showDivider ? '2px solid #555' : '1px solid #2a2a35', background: isLead ? '#1a1a28' : undefined }}
                       onClick={() => setExpandedAgentId(isExpanded ? null : a.id)}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
