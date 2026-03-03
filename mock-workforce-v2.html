@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workforce Mock V2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --ink: #172033;
+      --muted: #6c7996;
+      --line: #d7dfed;
+      --card: #ffffff;
+      --navy: #1d3557;
+      --cyan: #2cb9d1;
+      --mint: #39c89d;
+      --orange: #ef9a3d;
+      --red: #ef5b5b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Manrope", sans-serif;
+      color: var(--ink);
+      background:
+        linear-gradient(130deg, #eef4ff, #f6fbff 40%, #f4f7fb),
+        var(--bg);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .app {
+      max-width: 1500px;
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: -0.3px;
+    }
+
+    .sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .kpis {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 8px 12px;
+      min-width: 130px;
+    }
+
+    .kpi .label {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .kpi .val {
+      margin-top: 4px;
+      font-weight: 800;
+      font-size: 18px;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--navy);
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(33, 56, 99, 0.06);
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, #fbfdff, #f5f9ff);
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.primary {
+      background: var(--navy);
+      color: #fff;
+      border-color: var(--navy);
+    }
+
+    .btn.danger {
+      color: var(--red);
+      border-color: #f0c8c8;
+      background: #fff7f7;
+    }
+
+    .team-wrap {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .team {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+      background: #fcfdff;
+    }
+
+    .team.active {
+      border-color: #a6c7ff;
+      box-shadow: 0 0 0 2px #e9f1ff inset;
+      background: #f8fbff;
+    }
+
+    .team-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .b1 { background: #eaf6ff; color: #2d79d3; }
+    .b2 { background: #eafcf5; color: #239b76; }
+
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .right {
+      display: grid;
+      gap: 14px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #f8fbff;
+    }
+
+    .controls input, .controls select {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    .grid {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .agent {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      padding: 12px;
+      background: #fff;
+      display: grid;
+      gap: 8px;
+    }
+
+    .agent-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .agent-name {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .status {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 4px 8px;
+    }
+
+    .online { background: #eafcf5; color: #239b76; }
+    .idle { background: #fff5e8; color: #bc7a29; }
+
+    .usage {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .u {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 7px;
+      background: #fbfdff;
+    }
+
+    .u .k {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .u .v {
+      margin-top: 3px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .split {
+      height: 8px;
+      border-radius: 999px;
+      background: #ebf0f9;
+      overflow: hidden;
+      border: 1px solid #dde6f6;
+    }
+
+    .in {
+      height: 100%;
+      width: 62%;
+      background: linear-gradient(90deg, var(--cyan), var(--mint));
+      float: left;
+    }
+
+    .out {
+      height: 100%;
+      width: 38%;
+      background: #a9b9d8;
+      float: left;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .detail {
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      background: #fbfdff;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 10px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .box h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .mini-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .mini-list li {
+      display: flex;
+      justify-content: space-between;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 7px 8px;
+      background: #fcfdff;
+    }
+
+    @media (max-width: 1200px) {
+      .shell { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr; }
+      .detail { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <div>
+        <h1>Workforce Console</h1>
+        <p class="sub">Single page for teams, agents, and token usage operations</p>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="label">Teams</div><div class="val">4</div></div>
+        <div class="kpi"><div class="label">Agents</div><div class="val">20</div></div>
+        <div class="kpi"><div class="label">Tokens / 24h</div><div class="val">1.28M</div></div>
+      </div>
+    </div>
+
+    <div class="shell">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Teams</h2>
+          <div>
+            <button class="btn primary">+ New Team</button>
+            <button class="btn danger">Delete</button>
+          </div>
+        </div>
+        <div class="team-wrap">
+          <article class="team active">
+            <div class="team-top"><strong>CTO Team</strong><span class="badge b1">Selected</span></div>
+            <div class="meta"><span>8 agents</span><span>621k tokens/24h</span></div>
+          </article>
+          <article class="team">
+            <div class="team-top"><strong>CPO Team</strong><span class="badge b2">Healthy</span></div>
+            <div class="meta"><span>3 agents</span><span>188k tokens/24h</span></div>
+          </article>
+          <article class="team">
+            <div class="team-top"><strong>Leadership</strong><span class="badge b2">Healthy</span></div>
+            <div class="meta"><span>4 agents</span><span>102k tokens/24h</span></div>
+          </article>
+          <article class="team">
+            <div class="team-top"><strong>Consulting Office</strong><span class="badge b2">Healthy</span></div>
+            <div class="meta"><span>5 agents</span><span>373k tokens/24h</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel right">
+        <div class="panel-head">
+          <h2>Agents</h2>
+        </div>
+
+        <div class="controls">
+          <input placeholder="Search name, model, specialization..." />
+          <select><option>All Status</option><option>Online</option><option>Idle</option></select>
+          <button class="btn primary">+ New Agent</button>
+          <button class="btn danger">Delete Agent</button>
+        </div>
+
+        <div class="grid">
+          <article class="agent">
+            <div class="agent-top">
+              <div>
+                <div class="agent-name">Pixel</div>
+                <div class="mono">Frontend • kimi-k2.5 • CTO Team</div>
+              </div>
+              <span class="status online">online</span>
+            </div>
+            <div class="usage">
+              <div class="u"><div class="k">24h</div><div class="v">123,070</div></div>
+              <div class="u"><div class="k">7d</div><div class="v">705,120</div></div>
+              <div class="u"><div class="k">All-Time</div><div class="v">5.23M</div></div>
+            </div>
+            <div class="mono">Input / Output: 76,122 / 46,948</div>
+            <div class="split"><div class="in"></div><div class="out"></div></div>
+            <div class="actions"><button class="btn">Edit</button><button class="btn danger">Delete</button></div>
+          </article>
+
+          <article class="agent">
+            <div class="agent-top">
+              <div>
+                <div class="agent-name">Linus</div>
+                <div class="mono">Backend • kimi-k2.5 • CTO Team</div>
+              </div>
+              <span class="status online">online</span>
+            </div>
+            <div class="usage">
+              <div class="u"><div class="k">24h</div><div class="v">98,410</div></div>
+              <div class="u"><div class="k">7d</div><div class="v">554,260</div></div>
+              <div class="u"><div class="k">All-Time</div><div class="v">4.92M</div></div>
+            </div>
+            <div class="mono">Input / Output: 61,009 / 37,401</div>
+            <div class="split"><div class="in" style="width:61%"></div><div class="out" style="width:39%"></div></div>
+            <div class="actions"><button class="btn">Edit</button><button class="btn danger">Delete</button></div>
+          </article>
+
+          <article class="agent">
+            <div class="agent-top">
+              <div>
+                <div class="agent-name">Ada</div>
+                <div class="mono">Security • kimi-k2.5 • CTO Team</div>
+              </div>
+              <span class="status idle">idle</span>
+            </div>
+            <div class="usage">
+              <div class="u"><div class="k">24h</div><div class="v">82,330</div></div>
+              <div class="u"><div class="k">7d</div><div class="v">468,990</div></div>
+              <div class="u"><div class="k">All-Time</div><div class="v">3.90M</div></div>
+            </div>
+            <div class="mono">Input / Output: 50,101 / 32,229</div>
+            <div class="split"><div class="in" style="width:60%"></div><div class="out" style="width:40%"></div></div>
+            <div class="actions"><button class="btn">Edit</button><button class="btn danger">Delete</button></div>
+          </article>
+
+          <article class="agent">
+            <div class="agent-top">
+              <div>
+                <div class="agent-name">Terraform</div>
+                <div class="mono">DevOps • deepseek-v3 • CTO Team</div>
+              </div>
+              <span class="status online">online</span>
+            </div>
+            <div class="usage">
+              <div class="u"><div class="k">24h</div><div class="v">111,900</div></div>
+              <div class="u"><div class="k">7d</div><div class="v">622,470</div></div>
+              <div class="u"><div class="k">All-Time</div><div class="v">4.67M</div></div>
+            </div>
+            <div class="mono">Input / Output: 68,225 / 43,675</div>
+            <div class="split"><div class="in" style="width:61%"></div><div class="out" style="width:39%"></div></div>
+            <div class="actions"><button class="btn">Edit</button><button class="btn danger">Delete</button></div>
+          </article>
+        </div>
+
+        <div class="detail">
+          <div class="box">
+            <h3>Selected Agent Snapshot: Pixel</h3>
+            <ul class="mini-list">
+              <li><span>Team</span><strong>CTO Team</strong></li>
+              <li><span>Last Active</span><strong>2 mins ago</strong></li>
+              <li><span>Requests (24h)</span><strong>418</strong></li>
+              <li><span>Estimated Cost (24h)</span><strong>$12.84</strong></li>
+            </ul>
+          </div>
+          <div class="box">
+            <h3>Top Token Tasks</h3>
+            <ul class="mini-list">
+              <li><span>UI Revamp (T-113)</span><strong>42,180</strong></li>
+              <li><span>Jira DnD (T-109)</span><strong>29,032</strong></li>
+              <li><span>Mobile QA (T-097)</span><strong>24,888</strong></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

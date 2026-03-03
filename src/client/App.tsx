@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useAgents, useCreateAgent, useDeleteAgent, useRemoveAgentFromTeam, useDisableAgent, useEnableAgent, useNameSuggestions } from './queries/agents';
+import { useAgents, useCreateAgent, useDeleteAgent, useRemoveAgentFromTeam, useDisableAgent, useEnableAgent, useNameSuggestions, useAllAgentUsages } from './queries/agents';
 import { useTeams, useCreateTeam, useDeleteTeam, useAddAgentToTeam, useDisableTeam, useEnableTeam } from './queries/teams';
 import { useTasks } from './queries/tasks';
 import { useDelegationSteps } from './queries/delegation';
@@ -7,7 +7,7 @@ import { StatusDot } from './components/shared/StatusDot';
 import { KanbanBoardView } from './components/board/KanbanBoard';
 import type { Agent, Team, Task, DelegationStep } from './types';
 
-type View = 'orgchart' | 'teams' | 'agents' | 'traces' | 'board';
+type View = 'orgchart' | 'fleet' | 'traces' | 'board';
 
 const SPECIALIZATIONS = [
   'Enterprise Architecture', 'Platform Architecture', 'Data Architecture', 'Technology Architecture',
@@ -343,120 +343,210 @@ function ConfirmDialog({ open, onClose, onConfirm, message }: { open: boolean; o
   );
 }
 
-// ─── Teams View ───
-function TeamsView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
-  const deleteTeam = useDeleteTeam();
-  const addAgentToTeam = useAddAgentToTeam();
-  const removeAgent = useRemoveAgentFromTeam();
-  const disableTeam = useDisableTeam();
-  const enableTeam = useEnableTeam();
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [addToTeamId, setAddToTeamId] = useState<string | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState('');
-  const unassignedAgents = agents.filter(a => !a.teamId);
-
-  return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teams.map(t => (
-          <div key={t.id} className="rounded-lg p-4" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-lg text-white">{t.name}</h3>
-              <div className="flex items-center gap-1">
-                <button onClick={() => t.status === 'active' ? disableTeam.mutate(t.id) : enableTeam.mutate(t.id)}
-                  className={`text-xs px-2 py-0.5 rounded-full border ${t.status === 'active' ? 'text-green-400 border-green-700 hover:bg-green-900/30' : 'text-gray-500 border-gray-600 hover:bg-gray-700/30'}`}>
-                  {t.status === 'active' ? 'Active' : 'Disabled'}
-                </button>
-                <button onClick={() => setAddToTeamId(t.id)} className="text-gray-500 hover:text-blue-400 text-lg" title="Add agent">＋</button>
-                <button onClick={() => setConfirmDelete(t.id)} className="text-gray-500 hover:text-red-400" title="Delete team">🗑</button>
-              </div>
-            </div>
-            {t.description && <p className="text-sm text-gray-500 mb-2">{t.description}</p>}
-            <div className="space-y-1">
-              {agents.filter(a => a.teamId === t.id).map(a => (
-                <div key={a.id} className="group flex items-center justify-between py-1 px-2 rounded hover:bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <StatusDot status={a.status} />
-                    <span className="text-sm text-white">{a.name}</span>
-                  </div>
-                  <button onClick={() => removeAgent.mutate(a.id)}
-                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 text-xs" title="Remove">✕</button>
-                </div>
-              ))}
-              {agents.filter(a => a.teamId === t.id).length === 0 && <p className="text-xs text-gray-600 italic">No agents</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-      <ConfirmDialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}
-        onConfirm={() => confirmDelete && deleteTeam.mutate(confirmDelete)} message="Delete this team?" />
-      <Modal open={!!addToTeamId} onClose={() => { setAddToTeamId(null); setSelectedAgentId(''); }} title="Add Agent to Team">
-        <select value={selectedAgentId} onChange={e => setSelectedAgentId(e.target.value)}
-          className="w-full rounded-lg px-3 py-2 text-sm mb-4" style={{ background: '#2a2a35', border: '1px solid #3a3a4a', color: '#fff' }}>
-          <option value="">Select an agent…</option>
-          {unassignedAgents.map(a => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}
-        </select>
-        <div className="flex justify-end">
-          <button disabled={!selectedAgentId}
-            onClick={() => { if (addToTeamId && selectedAgentId) { addAgentToTeam.mutate({ teamId: addToTeamId, agentId: selectedAgentId }); setAddToTeamId(null); setSelectedAgentId(''); }}}
-            className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Add</button>
-        </div>
-      </Modal>
-    </>
-  );
-}
-
-// ─── Agents View ───
-function AgentsView({ agents, teams }: { agents: Agent[]; teams: Team[] }) {
+// ─── Unified Fleet View (Two-Panel: Teams Sidebar + Agents Table) ───
+function FleetView({ teams, agents }: { teams: Team[]; agents: Agent[] }) {
   const createAgent = useCreateAgent();
   const deleteAgent = useDeleteAgent();
   const disableAgent = useDisableAgent();
   const enableAgent = useEnableAgent();
-  const [showCreate, setShowCreate] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', role: '', teamId: '', specialization: '' });
-  const { data: suggestions } = useNameSuggestions(form.specialization || null);
-  const resetForm = () => { setForm({ name: '', role: '', teamId: '', specialization: '' }); setShowCreate(false); };
+  const createTeam = useCreateTeam();
+  const deleteTeam = useDeleteTeam();
+  const disableTeam = useDisableTeam();
+  const enableTeam = useEnableTeam();
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [confirmDeleteAgent, setConfirmDeleteAgent] = useState<string | null>(null);
+  const [confirmDeleteTeam, setConfirmDeleteTeam] = useState<string | null>(null);
+  const [agentForm, setAgentForm] = useState({ name: '', role: '', model: '', teamId: '', specialization: '' });
+  const [teamForm, setTeamForm] = useState({ name: '', description: '' });
+  const { data: suggestions } = useNameSuggestions(agentForm.specialization || null);
+
+  // Token usage for all agents
+  const agentIds = useMemo(() => agents.map(a => a.id), [agents]);
+  const { data: usageData } = useAllAgentUsages(agentIds);
+
+  // Team agent counts
+  const teamAgentCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    agents.forEach(a => { if (a.teamId) counts[a.teamId] = (counts[a.teamId] || 0) + 1; });
+    return counts;
+  }, [agents]);
+
+  // Filtered agents
+  const filteredAgents = useMemo(() => {
+    if (!selectedTeamId) return agents;
+    return agents.filter(a => a.teamId === selectedTeamId);
+  }, [agents, selectedTeamId]);
+
+  // Team name map
+  const teamNameMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    teams.forEach(t => { m[t.id] = t.name; });
+    return m;
+  }, [teams]);
+
+  const resetAgentForm = () => { setAgentForm({ name: '', role: '', model: '', teamId: '', specialization: '' }); setShowCreateAgent(false); };
+  const resetTeamForm = () => { setTeamForm({ name: '', description: '' }); setShowCreateTeam(false); };
+
+  const formatTokens = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
+  };
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-white">Agents <span className="text-gray-500 font-normal">({agents.length})</span></h2>
-        <button onClick={() => setShowCreate(true)} className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">+ Add Agent</button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.map(a => (
-          <div key={a.id} className="group rounded-lg p-4 hover:border-gray-500 transition-colors relative"
-            style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }}>
-            <button onClick={() => setConfirmDelete(a.id)}
-              className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400" title="Delete">🗑</button>
-            <div className="flex items-center gap-3 mb-2">
-              <Avatar agentId={a.agentId} size={36} />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-white">{a.name}</h3>
-                  <StatusDot status={a.status} />
-                </div>
-                <p className="text-sm text-gray-500">{a.role}</p>
+      <div className="flex gap-5 min-h-[calc(100vh-140px)]">
+        {/* ── Teams Sidebar (30%) ── */}
+        <div className="w-[30%] shrink-0">
+          <div className="rounded-xl overflow-hidden" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
+            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid #2a2a35' }}>
+              <span className="text-sm font-semibold text-white">Teams</span>
+              <button onClick={() => setShowCreateTeam(true)} className="text-xs px-2 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700">+ Team</button>
+            </div>
+            {/* All option */}
+            <div onClick={() => setSelectedTeamId(null)}
+              className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${!selectedTeamId ? 'bg-white/5' : 'hover:bg-white/[0.03]'}`}
+              style={{ borderBottom: '1px solid #2a2a35' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-white">All</span>
               </div>
+              <span className="text-xs text-gray-500 rounded-full px-2 py-0.5" style={{ background: '#2a2a35' }}>{agents.length}</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              <ModelBadge model={a.model} />
-              <button onClick={() => a.status === 'disabled' ? enableAgent.mutate(a.id) : disableAgent.mutate(a.id)}
-                className={`text-xs px-2 py-0.5 rounded-full border ${a.status === 'disabled' ? 'text-gray-500 border-gray-600' : 'text-green-400 border-green-700'}`}>
-                {a.status === 'disabled' ? 'Disabled' : 'Enabled'}
-              </button>
-            </div>
+            {/* Team list */}
+            {teams.map(t => (
+              <div key={t.id}
+                onClick={() => setSelectedTeamId(t.id)}
+                className={`group flex items-center justify-between px-4 py-3 cursor-pointer transition-colors ${selectedTeamId === t.id ? 'bg-white/5' : 'hover:bg-white/[0.03]'}`}
+                style={{ borderBottom: '1px solid #2a2a35' }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${t.status === 'active' ? 'bg-green-400' : 'bg-gray-600'}`} />
+                  <span className="text-sm font-medium text-white truncate">{t.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-gray-500 rounded-full px-2 py-0.5" style={{ background: '#2a2a35' }}>
+                    {teamAgentCounts[t.id] || 0}
+                  </span>
+                  <button onClick={(e) => { e.stopPropagation(); t.status === 'active' ? disableTeam.mutate(t.id) : enableTeam.mutate(t.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 text-xs" title="Toggle status">
+                    {t.status === 'active' ? '⏸' : '▶'}
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteTeam(t.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 text-xs" title="Delete">🗑</button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* ── Agents Table (70%) ── */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">
+              {selectedTeamId ? teamNameMap[selectedTeamId] || 'Team' : 'All Agents'}
+              <span className="text-gray-500 font-normal ml-2">({filteredAgents.length})</span>
+            </h2>
+            <button onClick={() => { setAgentForm(f => ({ ...f, teamId: selectedTeamId || '' })); setShowCreateAgent(true); }}
+              className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700">+ Add Agent</button>
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ background: '#1e1e24', border: '1px solid #2a2a35' }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid #2a2a35' }}>
+                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Name</th>
+                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Role</th>
+                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Model</th>
+                  <th className="text-left px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Team</th>
+                  <th className="text-center px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Status</th>
+                  <th className="text-right px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Tokens</th>
+                  <th className="text-right px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider">Cost</th>
+                  <th className="text-right px-4 py-3 text-gray-400 font-medium text-xs uppercase tracking-wider w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAgents.map(a => {
+                  const usage = usageData?.[a.id];
+                  return (
+                    <tr key={a.id} className="group hover:bg-white/[0.03] transition-colors" style={{ borderBottom: '1px solid #2a2a35' }}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Avatar agentId={a.agentId} size={28} />
+                          <span className="font-medium text-white">{a.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-400">{a.role}</td>
+                      <td className="px-4 py-3"><ModelBadge model={a.model} /></td>
+                      <td className="px-4 py-3 text-gray-400">{a.teamId ? (teamNameMap[a.teamId] || '—') : '—'}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                          a.status === 'disabled' ? 'bg-gray-600' :
+                          a.status === 'online' || a.status === 'busy' || a.status === 'idle' ? 'bg-green-400' : 'bg-gray-500'
+                        }`} title={a.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400 font-mono text-xs">
+                        {usage ? formatTokens(usage.totalTokens) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-400 font-mono text-xs">
+                        {usage ? `$${usage.cost.toFixed(4)}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100">
+                          <button onClick={() => a.status === 'disabled' ? enableAgent.mutate(a.id) : disableAgent.mutate(a.id)}
+                            className="text-gray-500 hover:text-yellow-400 text-xs" title="Toggle">
+                            {a.status === 'disabled' ? '▶' : '⏸'}
+                          </button>
+                          <button onClick={() => setConfirmDeleteAgent(a.id)}
+                            className="text-gray-500 hover:text-red-400 text-xs" title="Delete">🗑</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredAgents.length === 0 && (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-600 italic">No agents{selectedTeamId ? ' in this team' : ''}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <ConfirmDialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}
-        onConfirm={() => confirmDelete && deleteAgent.mutate(confirmDelete)} message="Delete this agent?" />
-      <Modal open={showCreate} onClose={resetForm} title="Add Agent">
+
+      {/* Modals */}
+      <ConfirmDialog open={!!confirmDeleteAgent} onClose={() => setConfirmDeleteAgent(null)}
+        onConfirm={() => confirmDeleteAgent && deleteAgent.mutate(confirmDeleteAgent)} message="Delete this agent?" />
+      <ConfirmDialog open={!!confirmDeleteTeam} onClose={() => setConfirmDeleteTeam(null)}
+        onConfirm={() => confirmDeleteTeam && deleteTeam.mutate(confirmDeleteTeam)} message="Delete this team and unassign its agents?" />
+
+      {/* Create Team Modal */}
+      <Modal open={showCreateTeam} onClose={resetTeamForm} title="Create Team">
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-400">Name</label>
+            <input value={teamForm.name} onChange={e => setTeamForm(f => ({ ...f, name: e.target.value }))}
+              className="w-full rounded-lg px-3 py-2 text-sm text-white mt-1" style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }} placeholder="Team name" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-400">Description</label>
+            <input value={teamForm.description} onChange={e => setTeamForm(f => ({ ...f, description: e.target.value }))}
+              className="w-full rounded-lg px-3 py-2 text-sm text-white mt-1" style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }} placeholder="Optional description" />
+          </div>
+          <div className="flex justify-end pt-2">
+            <button disabled={!teamForm.name}
+              onClick={() => { createTeam.mutate({ name: teamForm.name, description: teamForm.description || undefined }); resetTeamForm(); }}
+              className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Create</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create Agent Modal */}
+      <Modal open={showCreateAgent} onClose={resetAgentForm} title="Add Agent">
         <div className="space-y-3">
           <div>
             <label className="text-sm font-medium text-gray-400">Specialization</label>
-            <select value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value, name: '' }))}
+            <select value={agentForm.specialization} onChange={e => setAgentForm(f => ({ ...f, specialization: e.target.value, name: '' }))}
               className="w-full rounded-lg px-3 py-2 text-sm mt-1" style={{ background: '#2a2a35', border: '1px solid #3a3a4a', color: '#fff' }}>
               <option value="">Select…</option>
               {SPECIALIZATIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -467,30 +557,51 @@ function AgentsView({ agents, teams }: { agents: Agent[]; teams: Team[] }) {
             {suggestions?.names && suggestions.names.length > 0 && (
               <div className="flex gap-1 flex-wrap mt-1 mb-1">
                 {suggestions.names.map(n => (
-                  <button key={n} onClick={() => setForm(f => ({ ...f, name: n }))}
-                    className={`text-xs px-2 py-0.5 rounded-full border ${form.name === n ? 'bg-blue-900/50 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400 hover:bg-gray-700/30'}`}>{n}</button>
+                  <button key={n} onClick={() => setAgentForm(f => ({ ...f, name: n }))}
+                    className={`text-xs px-2 py-0.5 rounded-full border ${agentForm.name === n ? 'bg-blue-900/50 border-blue-500 text-blue-300' : 'border-gray-600 text-gray-400 hover:bg-gray-700/30'}`}>{n}</button>
                 ))}
               </div>
             )}
-            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            <input value={agentForm.name} onChange={e => setAgentForm(f => ({ ...f, name: e.target.value }))}
               className="w-full rounded-lg px-3 py-2 text-sm text-white" style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }} placeholder="Agent name" />
           </div>
           <div>
             <label className="text-sm font-medium text-gray-400">Role</label>
-            <input value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+            <input value={agentForm.role} onChange={e => setAgentForm(f => ({ ...f, role: e.target.value }))}
               className="w-full rounded-lg px-3 py-2 text-sm text-white" style={{ background: '#2a2a35', border: '1px solid #3a3a4a' }} placeholder="e.g. Backend Engineer" />
           </div>
           <div>
+            <label className="text-sm font-medium text-gray-400">Model</label>
+            <select value={agentForm.model} onChange={e => setAgentForm(f => ({ ...f, model: e.target.value }))}
+              className="w-full rounded-lg px-3 py-2 text-sm mt-1" style={{ background: '#2a2a35', border: '1px solid #3a3a4a', color: '#fff' }}>
+              <option value="">Auto (based on specialization)</option>
+              <option value="claude-opus-4.6">Opus 4.6</option>
+              <option value="claude-sonnet-4.6">Sonnet 4.6</option>
+              <option value="kimi-k2.5">Kimi K2.5</option>
+              <option value="deepseek-v3">DeepSeek V3</option>
+            </select>
+          </div>
+          <div>
             <label className="text-sm font-medium text-gray-400">Team</label>
-            <select value={form.teamId} onChange={e => setForm(f => ({ ...f, teamId: e.target.value }))}
+            <select value={agentForm.teamId} onChange={e => setAgentForm(f => ({ ...f, teamId: e.target.value }))}
               className="w-full rounded-lg px-3 py-2 text-sm mt-1" style={{ background: '#2a2a35', border: '1px solid #3a3a4a', color: '#fff' }}>
               <option value="">No team</option>
               {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div className="flex justify-end pt-2">
-            <button disabled={!form.name || !form.role}
-              onClick={() => { createAgent.mutate({ agentId: form.name.toLowerCase().replace(/\s+/g, '-'), name: form.name, role: form.role, teamId: form.teamId || undefined, specialization: form.specialization || undefined } as any); resetForm(); }}
+            <button disabled={!agentForm.name || !agentForm.role}
+              onClick={() => {
+                createAgent.mutate({
+                  agentId: agentForm.name.toLowerCase().replace(/\s+/g, '-'),
+                  name: agentForm.name,
+                  role: agentForm.role,
+                  model: agentForm.model || undefined,
+                  teamId: agentForm.teamId || undefined,
+                  specialization: agentForm.specialization || undefined,
+                } as any);
+                resetAgentForm();
+              }}
               className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40">Create</button>
           </div>
         </div>
@@ -659,8 +770,7 @@ function TaskTracesView({ tasks, agents }: { tasks: Task[]; agents: Agent[] }) {
 // ─── Main App ───
 const tabs: { key: View; label: string; icon: string }[] = [
   { key: 'orgchart', label: 'Org Chart', icon: '🏗' },
-  { key: 'teams', label: 'Teams', icon: '👥' },
-  { key: 'agents', label: 'Agents', icon: '🤖' },
+  { key: 'fleet', label: 'Fleet', icon: '🚀' },
   { key: 'traces', label: 'Task Traces', icon: '📋' },
   { key: 'board', label: 'Jira Board', icon: '🗂' },
 ];
@@ -697,8 +807,7 @@ export default function App() {
         ) : (
           <>
             {view === 'orgchart' && <OrgChartView agents={agents} teams={teams} />}
-            {view === 'teams' && <TeamsView teams={teams} agents={agents} />}
-            {view === 'agents' && <AgentsView agents={agents} teams={teams} />}
+            {view === 'fleet' && <FleetView teams={teams} agents={agents} />}
             {view === 'traces' && <TaskTracesView tasks={tasks} agents={agents} />}
             {view === 'board' && <KanbanBoardView />}
           </>

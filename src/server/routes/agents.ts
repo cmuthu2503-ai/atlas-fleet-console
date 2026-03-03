@@ -239,6 +239,57 @@ app.patch('/:id/remove-from-team', async (c) => {
   }
 });
 
+// GET /api/fleet/agents/:id/usage
+app.get('/:id/usage', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const existing = await db.select().from(agents).where(or(eq(agents.id, id), eq(agents.agentId, id)));
+    if (existing.length === 0) return c.json({ error: 'Agent not found' }, 404);
+    const agent = existing[0]!;
+
+    // Count tasks to derive simulated usage metrics
+    const agentTasks = await db.select().from(tasks).where(
+      or(eq(tasks.assignedAgentId, agent.id), eq(tasks.createdByAgentId, agent.id))
+    );
+    const completedTasks = agentTasks.filter(t => t.status === 'completed').length;
+    const totalTasks = agentTasks.length;
+
+    // Simulated token usage based on task activity and model
+    const baseTokens = agent.status === 'disabled' ? 0 : 1000;
+    const taskTokens = completedTasks * 12500 + (totalTasks - completedTasks) * 4200;
+    const inputTokens = baseTokens + taskTokens;
+    const outputTokens = Math.round(inputTokens * 0.35);
+    const totalTokens = inputTokens + outputTokens;
+
+    // Cost estimation based on model
+    const modelRates: Record<string, { input: number; output: number }> = {
+      'claude-opus': { input: 15, output: 75 },
+      'claude-opus-4.6': { input: 15, output: 75 },
+      'claude-sonnet': { input: 3, output: 15 },
+      'claude-sonnet-4.6': { input: 3, output: 15 },
+      'claude-sonnet-4-5-20250514': { input: 3, output: 15 },
+      'kimi-k2.5': { input: 1, output: 5 },
+      'deepseek-v3': { input: 0.5, output: 2 },
+    };
+    const rate = modelRates[agent.model || ''] || { input: 3, output: 15 };
+    const cost = ((inputTokens / 1_000_000) * rate.input) + ((outputTokens / 1_000_000) * rate.output);
+
+    return c.json({
+      data: {
+        agentId: agent.agentId,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        cost: Math.round(cost * 10000) / 10000,
+        taskCount: totalTasks,
+        completedTaskCount: completedTasks,
+      }
+    });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // GET /api/fleet/agents/:id/tasks
 app.get('/:id/tasks', async (c) => {
   try {

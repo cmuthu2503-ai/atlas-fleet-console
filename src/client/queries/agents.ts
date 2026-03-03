@@ -111,6 +111,35 @@ export function useNameSuggestions(specialization: string | null) {
   });
 }
 
+export function useAgentUsage(id: string | null) {
+  return useQuery<{ agentId: string; inputTokens: number; outputTokens: number; totalTokens: number; cost: number; taskCount: number; completedTaskCount: number }>({
+    queryKey: ['agentUsage', id],
+    queryFn: () => fetchJson(`${BASE}/agents/${id}/usage`),
+    enabled: !!id,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAllAgentUsages(agentIds: string[]) {
+  return useQuery<Record<string, { totalTokens: number; cost: number }>>({
+    queryKey: ['allAgentUsages', agentIds.join(',')],
+    queryFn: async () => {
+      const results: Record<string, { totalTokens: number; cost: number }> = {};
+      await Promise.all(
+        agentIds.map(async (id) => {
+          try {
+            const data = await fetchJson<{ totalTokens: number; cost: number }>(`${BASE}/agents/${id}/usage`);
+            results[id] = data;
+          } catch { /* skip */ }
+        })
+      );
+      return results;
+    },
+    enabled: agentIds.length > 0,
+    refetchInterval: 60_000,
+  });
+}
+
 export function useModelRecommendation(specialization: string | null) {
   return useQuery<{ recommended: string; alternatives: string[] }>({
     queryKey: ['modelRecommendation', specialization],
