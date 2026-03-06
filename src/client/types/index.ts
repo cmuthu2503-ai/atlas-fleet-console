@@ -126,6 +126,7 @@ export interface BedrockModelCatalogEntry {
   modelId: string;
   name: string;
   provider: string;
+  releaseTimestamp?: number;
   inputModalities: string[];
   outputModalities: string[];
   inferenceTypesSupported: string[];

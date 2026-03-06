@@ -862,8 +862,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen" style={{ background: '#111117', fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
-      <header className="px-6 py-4" style={{ background: '#111117', borderBottom: '1px solid #2a2a35' }}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header
+        className="sticky top-0 z-40 px-6 py-4"
+        style={{ background: 'rgba(17, 17, 23, 0.96)', borderBottom: '1px solid #2a2a35', backdropFilter: 'blur(12px)' }}
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🚀</span>
             <h1 className="text-xl font-bold text-white">Atlas Fleet Console</h1>

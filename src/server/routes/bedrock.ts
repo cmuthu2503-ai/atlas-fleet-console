@@ -48,6 +48,29 @@ function inferTags(modelId: string, modelName: string, inputModalities: string[]
   return [...tags] as Array<'chat' | 'code' | 'analysis' | 'rag' | 'creative'>;
 }
 
+function parseDateValue(value: Date | string | undefined) {
+  if (!value) return undefined;
+  const timestamp = value instanceof Date ? value.getTime() : Date.parse(value);
+  return Number.isNaN(timestamp) ? undefined : timestamp;
+}
+
+function parseModelIdReleaseTimestamp(modelId: string) {
+  const match = modelId.match(/-(\d{8})(?=-v\d|:|$)/);
+  if (!match) return undefined;
+
+  const [, rawDate] = match;
+  const year = Number(rawDate.slice(0, 4));
+  const month = Number(rawDate.slice(4, 6)) - 1;
+  const day = Number(rawDate.slice(6, 8));
+  const timestamp = Date.UTC(year, month, day);
+
+  return Number.isNaN(timestamp) ? undefined : timestamp;
+}
+
+function getReleaseTimestamp(summary: { modelLifecycle?: { startOfLifeTime?: Date | string } | undefined; modelId?: string | undefined }) {
+  return parseDateValue(summary.modelLifecycle?.startOfLifeTime) ?? parseModelIdReleaseTimestamp(summary.modelId ?? '');
+}
+
 function inferSignals(modelId: string, modelName: string, provider: string) {
   const haystack = `${modelId} ${modelName} ${provider}`.toLowerCase();
   let quality = 76;
@@ -133,6 +156,7 @@ app.get('/models', async (c) => {
           modelId,
           name: modelName,
           provider,
+          releaseTimestamp: getReleaseTimestamp(summary),
           inputModalities,
           outputModalities,
           inferenceTypesSupported: summary.inferenceTypesSupported ?? [],
@@ -143,7 +167,12 @@ app.get('/models', async (c) => {
           ...inferSignals(modelId, modelName, provider),
         };
       })
-      .sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
+      .sort((a, b) =>
+        a.provider.localeCompare(b.provider) ||
+        (b.releaseTimestamp ?? 0) - (a.releaseTimestamp ?? 0) ||
+        a.name.localeCompare(b.name) ||
+        a.modelId.localeCompare(b.modelId),
+      );
 
     return c.json({
       data: {

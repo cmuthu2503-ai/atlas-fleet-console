@@ -9,6 +9,7 @@ type GroupedRankedModel = {
   familyKey: string;
   name: string;
   provider: string;
+  releaseTimestamp?: number;
   tags: BedrockWorkCategory[];
   quality: number;
   latency: number;
@@ -45,6 +46,11 @@ const BEDROCK_REGIONS = [
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatReleaseDate(timestamp?: number) {
+  if (!timestamp) return 'Release date unavailable';
+  return new Date(timestamp).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function WorkCategoryChip({ active, label, onClick }: { active: boolean; label: string; onClick?: () => void }) {
@@ -268,6 +274,7 @@ export function BedrockModelAdvisorView() {
           familyKey,
           name: model.name,
           provider: model.provider,
+          releaseTimestamp: model.releaseTimestamp,
           tags: [...model.tags],
           quality: model.quality,
           latency: model.latency,
@@ -287,6 +294,7 @@ export function BedrockModelAdvisorView() {
       }
 
       existing.tags = uniqueValues([...existing.tags, ...model.tags]) as BedrockWorkCategory[];
+      existing.releaseTimestamp = Math.max(existing.releaseTimestamp ?? 0, model.releaseTimestamp ?? 0) || undefined;
       existing.quality = Math.max(existing.quality, model.quality);
       existing.latency = Math.max(existing.latency, model.latency);
       existing.cost = Math.max(existing.cost, model.cost);
@@ -308,12 +316,17 @@ export function BedrockModelAdvisorView() {
       .map(model => ({
         ...model,
         variants: [...model.variants].sort((a, b) =>
+          (b.releaseTimestamp ?? 0) - (a.releaseTimestamp ?? 0) ||
           b.fit - a.fit ||
           b.inferenceTypesSupported.length - a.inferenceTypesSupported.length ||
           a.modelId.localeCompare(b.modelId),
         ),
       }))
-      .sort((a, b) => b.fit - a.fit || a.name.localeCompare(b.name));
+      .sort((a, b) =>
+        (b.releaseTimestamp ?? 0) - (a.releaseTimestamp ?? 0) ||
+        b.fit - a.fit ||
+        a.name.localeCompare(b.name),
+      );
   }, [rankedModels]);
 
   const visibleModels = viewMode === 'all'
@@ -368,8 +381,11 @@ export function BedrockModelAdvisorView() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="rounded-xl border p-4" style={{ borderColor: '#2a2a35', background: '#ffffff' }}>
+      <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside
+          className="self-start rounded-xl border p-4 xl:sticky xl:top-28"
+          style={{ borderColor: '#2a2a35', background: '#ffffff' }}
+        >
           <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>1. Work Profile</h3>
           <div className="mt-3 space-y-3">
             <div>
@@ -517,7 +533,7 @@ export function BedrockModelAdvisorView() {
         <section className="rounded-xl border p-4" style={{ borderColor: '#2a2a35', background: '#ffffff' }}>
           <h3 className="text-base font-semibold" style={{ color: '#1f2937' }}>Recommended Models</h3>
           <p className="mt-1 text-sm" style={{ color: '#6b7280' }}>
-            Ranked by weighted fit to your selected categories and priorities.
+            Filtered by your selected categories and priorities, then ordered by most recent Bedrock release.
           </p>
 
           <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
@@ -578,7 +594,7 @@ export function BedrockModelAdvisorView() {
                         <span className="ml-2">Best for: {model.tags.join(', ')}</span>
                       </div>
                       <div className="mt-1 text-xs" style={{ color: '#94a3b8' }}>
-                        {model.variants.length} variant{model.variants.length === 1 ? '' : 's'} discovered in Bedrock for this family
+                        Latest release {formatReleaseDate(model.releaseTimestamp)}. {model.variants.length} variant{model.variants.length === 1 ? '' : 's'} discovered in Bedrock for this family
                       </div>
                     </div>
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold" style={{ background: '#eaf2ff', color: '#234fb2', border: '1px solid #bdd1ff' }}>
@@ -630,8 +646,9 @@ export function BedrockModelAdvisorView() {
                             <div className="text-xs font-medium break-all" style={{ color: '#334155' }}>
                               {variant.modelId}
                             </div>
-                            <div className="text-[11px]" style={{ color: '#64748b' }}>
-                              Fit {variant.fit}/100
+                            <div className="text-right text-[11px]" style={{ color: '#64748b' }}>
+                              <div>Fit {variant.fit}/100</div>
+                              <div>{formatReleaseDate(variant.releaseTimestamp)}</div>
                             </div>
                           </div>
                           <div className="mt-2 flex gap-2 flex-wrap">
