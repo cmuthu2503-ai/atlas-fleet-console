@@ -3,10 +3,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      AWS_SDK_LOAD_CONFIG: "1"
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     ports:
       - "3590:3590"
     volumes:
       - fleet-data:/app/data
+      - ${HOME}/.aws:/root/.aws:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3590/api/health"]
       interval: 10s
@@ -18,8 +27,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "80:80"
-      - "3000:80"
+      - "8088:80"
     depends_on:
       backend:
         condition: service_healthy

@@ -120,6 +120,32 @@ export interface BoardStats {
   avgBugLoopCount: number;
 }
 
+export type BedrockWorkCategory = 'chat' | 'code' | 'analysis' | 'rag' | 'creative';
+
+export interface BedrockModelCatalogEntry {
+  modelId: string;
+  name: string;
+  provider: string;
+  inputModalities: string[];
+  outputModalities: string[];
+  inferenceTypesSupported: string[];
+  customizationsSupported: string[];
+  responseStreamingSupported: boolean;
+  lifecycleStatus: string;
+  tags: BedrockWorkCategory[];
+  quality: number;
+  latency: number;
+  cost: number;
+  context: number;
+}
+
+export interface BedrockModelCatalogResponse {
+  region: string;
+  source: string;
+  fetchedAt: number;
+  models: BedrockModelCatalogEntry[];
+}
+
 export type ViewMode = 'fleet' | 'tasks';
 
 export interface ContextMenuState {

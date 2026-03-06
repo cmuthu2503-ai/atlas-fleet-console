@@ -5,9 +5,10 @@ import { useTasks } from './queries/tasks';
 import { useDelegationSteps } from './queries/delegation';
 import { StatusDot } from './components/shared/StatusDot';
 import { KanbanBoardView } from './components/board/KanbanBoard';
+import { BedrockModelAdvisorView } from './components/models/BedrockModelAdvisor';
 import type { Agent, Team, Task, DelegationStep } from './types';
 
-type View = 'orgchart' | 'fleet' | 'traces' | 'board';
+type View = 'orgchart' | 'fleet' | 'traces' | 'board' | 'models';
 
 const SPECIALIZATIONS = [
   'Enterprise Architecture', 'Platform Architecture', 'Data Architecture', 'Technology Architecture',
@@ -850,6 +851,7 @@ const tabs: { key: View; label: string; icon: string }[] = [
   { key: 'fleet', label: 'Fleet', icon: '🚀' },
   { key: 'traces', label: 'Task Traces', icon: '📋' },
   { key: 'board', label: 'Jira Board', icon: '🗂' },
+  { key: 'models', label: 'Model Advisor', icon: '🧠' },
 ];
 
 export default function App() {
@@ -879,7 +881,7 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        {(loadingAgents || loadingTeams || loadingTasks) && view !== 'orgchart' ? (
+        {(loadingAgents || loadingTeams || loadingTasks) && view !== 'orgchart' && view !== 'models' ? (
           <p className="text-gray-500">Loading…</p>
         ) : (
           <>
@@ -887,6 +889,7 @@ export default function App() {
             {view === 'fleet' && <FleetView teams={teams} agents={agents} />}
             {view === 'traces' && <TaskTracesView tasks={tasks} agents={agents} />}
             {view === 'board' && <KanbanBoardView />}
+            {view === 'models' && <BedrockModelAdvisorView />}
           </>
         )}
       </main>

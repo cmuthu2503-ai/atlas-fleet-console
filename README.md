@@ -18,11 +18,19 @@ Build and run with Docker Compose:
 docker compose up -d --build
 ```
 
-- **Frontend**: http://localhost (port 80)
+- **Frontend**: http://localhost:8088
 - **Backend API**: http://localhost:3590
 - **Health check**: http://localhost:3590/api/health
 
 The frontend nginx container proxies all `/api/` requests to the backend container. SQLite data is persisted in a Docker volume (`fleet-data`).
+
+### Bedrock Discovery
+
+The backend now supports live AWS Bedrock model discovery at `/api/bedrock/models`.
+
+- Docker passes through `AWS_REGION`, `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`
+- The backend also mounts `${HOME}/.aws` read-only into the container for profile-based auth
+- Default region is `us-east-1` unless overridden
 
 ### Seed the database (optional)
 

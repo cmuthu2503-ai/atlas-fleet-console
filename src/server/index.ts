@@ -9,6 +9,7 @@ import delegationRoutes from './routes/delegation.js';
 import storyRoutes from './routes/stories.js';
 import bugRoutes from './routes/bugs.js';
 import boardRoutes from './routes/board.js';
+import bedrockRoutes from './routes/bedrock.js';
 
 const app = new Hono();
 
@@ -44,6 +45,7 @@ app.route('/api/fleet', delegationRoutes);
 app.route('/api/stories', storyRoutes);
 app.route('/api/bugs', bugRoutes);
 app.route('/api/board', boardRoutes);
+app.route('/api/bedrock', bedrockRoutes);
 
 // Specializations endpoint
 app.get('/api/fleet/specializations', (c) => {
