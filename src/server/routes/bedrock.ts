@@ -1,15 +1,65 @@
 import { Hono } from 'hono';
-import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock';
+import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 const app = new Hono();
 
+const ACTIVE_CHECK_TTL_MS = 15 * 60_000;
+const ACTIVE_CHECK_TIMEOUT_MS = 5_000;
+const ACTIVE_CHECK_CONCURRENCY = 4;
+const ACTIVE_CHECK_PROMPT = 'Reply with OK only.';
+
+type BedrockCatalogEntry = {
+  modelId: string;
+  name: string;
+  provider: string;
+  releaseTimestamp?: number;
+  inputModalities: string[];
+  outputModalities: string[];
+  inferenceTypesSupported: string[];
+  customizationsSupported: string[];
+  responseStreamingSupported: boolean;
+  lifecycleStatus: string;
+  tags: Array<'chat' | 'code' | 'analysis' | 'rag' | 'creative'>;
+  quality: number;
+  latency: number;
+  cost: number;
+  context: number;
+};
+
+type ActiveCheckResult = {
+  modelId: string;
+  provider: string;
+  isActive: boolean;
+  checkedAt: number;
+  probeTargetId?: string;
+  error?: string;
+};
+
+type InferenceProfileSummary = {
+  inferenceProfileId: string;
+  models: string[];
+  status?: string;
+};
+
 const clientCache = new Map<string, BedrockClient>();
+const runtimeClientCache = new Map<string, BedrockRuntimeClient>();
+const activeCheckCache = new Map<string, ActiveCheckResult>();
+const inferenceProfileCache = new Map<string, { fetchedAt: number; profiles: InferenceProfileSummary[] }>();
 
 function getClient(region: string) {
   const cached = clientCache.get(region);
   if (cached) return cached;
   const client = new BedrockClient({ region });
   clientCache.set(region, client);
+  return client;
+}
+
+function getRuntimeClient(region: string) {
+  const cached = runtimeClientCache.get(region);
+  if (cached) return cached;
+  const client = new BedrockRuntimeClient({ region });
+  runtimeClientCache.set(region, client);
   return client;
 }
 
@@ -29,9 +79,6 @@ function inferTags(modelId: string, modelName: string, inputModalities: string[]
     tags.add('chat');
   }
   if (/code|coder|q-developer|qdeveloper|devstral/.test(haystack)) {
-    tags.add('code');
-  }
-  if (textGenerator && /claude|llama|mistral|deepseek|qwen|gpt|gemma|jamba|palmyra|nova-pro|nova-premier|kimi/.test(haystack)) {
     tags.add('code');
   }
   if (/embed|embedding|command-r|knowledge|retrieve|rerank/.test(haystack)) {
@@ -138,48 +185,255 @@ function getFriendlyError(error: unknown, region: string) {
   return `${name}: ${message}`;
 }
 
+function getFriendlyProbeError(error: unknown, modelId: string) {
+  const name = (error as { name?: string })?.name || 'BedrockRuntimeError';
+  const message = (error as { message?: string })?.message || 'Unknown Bedrock runtime error';
+
+  if (name === 'AccessDeniedException' || name === 'ValidationException' || name === 'ResourceNotFoundException') {
+    return `${name}: ${message}`;
+  }
+  if (name === 'ModelTimeoutException' || name === 'ThrottlingException') {
+    return `${name}: ${message}`;
+  }
+  if (name === 'AbortError' || /aborted/i.test(message)) {
+    return `ProbeTimeout: Timed out while checking ${modelId}.`;
+  }
+
+  return `${name}: ${message}`;
+}
+
+function parseProviders(rawProviders?: string) {
+  if (!rawProviders) return [];
+  return rawProviders
+    .split(',')
+    .map(provider => provider.trim())
+    .filter(Boolean);
+}
+
+function supportsTextProbe(model: BedrockCatalogEntry) {
+  return model.inputModalities.includes('TEXT') && model.outputModalities.includes('TEXT');
+}
+
+async function listInferenceProfiles(region: string) {
+  const cached = inferenceProfileCache.get(region);
+  const now = Date.now();
+
+  if (cached && now - cached.fetchedAt < ACTIVE_CHECK_TTL_MS) {
+    return cached.profiles;
+  }
+
+  const client = getClient(region);
+  const profiles: InferenceProfileSummary[] = [];
+  let nextToken: string | undefined;
+
+  do {
+    const response = await client.send(new ListInferenceProfilesCommand({
+      maxResults: 100,
+      typeEquals: 'SYSTEM_DEFINED',
+      nextToken,
+    }));
+
+    for (const summary of response.inferenceProfileSummaries ?? []) {
+      const inferenceProfileId = summary.inferenceProfileId;
+      if (!inferenceProfileId) continue;
+
+      profiles.push({
+        inferenceProfileId,
+        models: (summary.models ?? [])
+          .map(model => model.modelArn ?? '')
+          .filter(Boolean),
+        status: summary.status,
+      });
+    }
+
+    nextToken = response.nextToken;
+  } while (nextToken);
+
+  inferenceProfileCache.set(region, { fetchedAt: now, profiles });
+  return profiles;
+}
+
+async function resolveProbeTarget(region: string, model: BedrockCatalogEntry) {
+  if (!model.inferenceTypesSupported.includes('INFERENCE_PROFILE')) {
+    return model.modelId;
+  }
+
+  const profiles = await listInferenceProfiles(region);
+  const modelSuffix = `/${model.modelId}`;
+  const matchingProfile = profiles.find(profile =>
+    profile.status === 'ACTIVE' &&
+    profile.models.some(modelArn => modelArn.endsWith(modelSuffix)),
+  );
+
+  return matchingProfile?.inferenceProfileId ?? model.modelId;
+}
+
+async function mapWithConcurrency<T, U>(items: T[], limit: number, worker: (item: T) => Promise<U>) {
+  const results = new Array<U>(items.length);
+  let cursor = 0;
+
+  async function runWorker() {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  }
+
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  return results;
+}
+
+async function listModels(region: string) {
+  const client = getClient(region);
+  const response = await client.send(new ListFoundationModelsCommand({}));
+
+  return (response.modelSummaries ?? [])
+    .map(summary => {
+      const modelId = summary.modelId ?? 'unknown-model';
+      const modelName = summary.modelName ?? modelId;
+      const provider = summary.providerName ?? 'Unknown';
+      const inputModalities = summary.inputModalities ?? [];
+      const outputModalities = summary.outputModalities ?? [];
+
+      return {
+        modelId,
+        name: modelName,
+        provider,
+        releaseTimestamp: getReleaseTimestamp(summary),
+        inputModalities,
+        outputModalities,
+        inferenceTypesSupported: summary.inferenceTypesSupported ?? [],
+        customizationsSupported: summary.customizationsSupported ?? [],
+        responseStreamingSupported: summary.responseStreamingSupported ?? false,
+        lifecycleStatus: summary.modelLifecycle?.status ?? 'ACTIVE',
+        tags: inferTags(modelId, modelName, inputModalities, outputModalities),
+        ...inferSignals(modelId, modelName, provider),
+      } satisfies BedrockCatalogEntry;
+    })
+    .sort((a, b) =>
+      a.provider.localeCompare(b.provider) ||
+      (b.releaseTimestamp ?? 0) - (a.releaseTimestamp ?? 0) ||
+      a.name.localeCompare(b.name) ||
+      a.modelId.localeCompare(b.modelId),
+    );
+}
+
+async function runActiveCheck(region: string, model: BedrockCatalogEntry): Promise<ActiveCheckResult> {
+  const cacheKey = `${region}:${model.modelId}`;
+  const cached = activeCheckCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && now - cached.checkedAt < ACTIVE_CHECK_TTL_MS) {
+    return cached;
+  }
+
+  if (!supportsTextProbe(model)) {
+    const result = {
+      modelId: model.modelId,
+      provider: model.provider,
+      isActive: false,
+      checkedAt: now,
+      error: 'TextProbeUnsupported: Model does not support TEXT input and TEXT output.',
+    };
+    activeCheckCache.set(cacheKey, result);
+    return result;
+  }
+
+  const probeTargetId = await resolveProbeTarget(region, model);
+
+  try {
+    const runtimeClient = getRuntimeClient(region);
+    const response = await runtimeClient.send(
+      new ConverseCommand({
+        modelId: probeTargetId,
+        messages: [
+          {
+            role: 'user',
+            content: [{ text: ACTIVE_CHECK_PROMPT }],
+          },
+        ],
+        inferenceConfig: {
+          maxTokens: 8,
+          temperature: 0,
+        },
+      }),
+      { abortSignal: AbortSignal.timeout(ACTIVE_CHECK_TIMEOUT_MS) },
+    );
+
+    const hasTextResponse = (response.output?.message?.content ?? []).some(block => {
+      const text = (block as { text?: string }).text;
+      return typeof text === 'string' && text.trim().length > 0;
+    });
+
+    const result = {
+      modelId: model.modelId,
+      provider: model.provider,
+      isActive: hasTextResponse,
+      checkedAt: now,
+      probeTargetId,
+      error: hasTextResponse ? undefined : 'EmptyResponse: Model returned no text content for the probe.',
+    };
+    activeCheckCache.set(cacheKey, result);
+    return result;
+  } catch (error) {
+    const result = {
+      modelId: model.modelId,
+      provider: model.provider,
+      isActive: false,
+      checkedAt: now,
+      probeTargetId,
+      error: getFriendlyProbeError(error, model.modelId),
+    };
+    activeCheckCache.set(cacheKey, result);
+    return result;
+  }
+}
+
 app.get('/models', async (c) => {
   const region = c.req.query('region') || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
 
   try {
-    const client = getClient(region);
-    const response = await client.send(new ListFoundationModelsCommand({}));
-    const models = (response.modelSummaries ?? [])
-      .map(summary => {
-        const modelId = summary.modelId ?? 'unknown-model';
-        const modelName = summary.modelName ?? modelId;
-        const provider = summary.providerName ?? 'Unknown';
-        const inputModalities = summary.inputModalities ?? [];
-        const outputModalities = summary.outputModalities ?? [];
-
-        return {
-          modelId,
-          name: modelName,
-          provider,
-          releaseTimestamp: getReleaseTimestamp(summary),
-          inputModalities,
-          outputModalities,
-          inferenceTypesSupported: summary.inferenceTypesSupported ?? [],
-          customizationsSupported: summary.customizationsSupported ?? [],
-          responseStreamingSupported: summary.responseStreamingSupported ?? false,
-          lifecycleStatus: summary.modelLifecycle?.status ?? 'ACTIVE',
-          tags: inferTags(modelId, modelName, inputModalities, outputModalities),
-          ...inferSignals(modelId, modelName, provider),
-        };
-      })
-      .sort((a, b) =>
-        a.provider.localeCompare(b.provider) ||
-        (b.releaseTimestamp ?? 0) - (a.releaseTimestamp ?? 0) ||
-        a.name.localeCompare(b.name) ||
-        a.modelId.localeCompare(b.modelId),
-      );
-
+    const models = await listModels(region);
     return c.json({
       data: {
         region,
         source: 'aws-bedrock-live',
         fetchedAt: Date.now(),
         models,
+      },
+    });
+  } catch (error) {
+    return c.json({
+      error: getFriendlyError(error, region),
+      details: (error as { message?: string })?.message || 'Unknown error',
+      region,
+    }, getStatusCode(error));
+  }
+});
+
+app.get('/active-models', async (c) => {
+  const region = c.req.query('region') || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const selectedProviders = parseProviders(c.req.query('providers'));
+
+  try {
+    const allModels = await listModels(region);
+    const models = selectedProviders.length > 0
+      ? allModels.filter(model => selectedProviders.includes(model.provider))
+      : allModels;
+
+    const checks = await mapWithConcurrency(models, ACTIVE_CHECK_CONCURRENCY, model => runActiveCheck(region, model));
+    const activeCount = checks.filter(check => check.isActive).length;
+
+    return c.json({
+      data: {
+        region,
+        source: 'bedrock-runtime-probe',
+        checkedAt: Date.now(),
+        checkedCount: checks.length,
+        activeCount,
+        checks,
       },
     });
   } catch (error) {

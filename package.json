@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.1003.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1003.0",
     "@dagrejs/dagre": "^2.0.4",
     "@hono/node-server": "^1.13.0",
     "@tailwindcss/vite": "^4.2.1",

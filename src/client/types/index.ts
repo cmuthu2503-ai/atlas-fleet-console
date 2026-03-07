@@ -147,6 +147,24 @@ export interface BedrockModelCatalogResponse {
   models: BedrockModelCatalogEntry[];
 }
 
+export interface BedrockModelActiveCheck {
+  modelId: string;
+  provider: string;
+  isActive: boolean;
+  checkedAt: number;
+  probeTargetId?: string;
+  error?: string;
+}
+
+export interface BedrockModelActiveCheckResponse {
+  region: string;
+  source: string;
+  checkedAt: number;
+  checkedCount: number;
+  activeCount: number;
+  checks: BedrockModelActiveCheck[];
+}
+
 export type ViewMode = 'fleet' | 'tasks';
 
 export interface ContextMenuState {

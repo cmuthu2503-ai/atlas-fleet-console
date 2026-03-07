@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { BedrockModelCatalogResponse } from '../types';
+import type { BedrockModelActiveCheckResponse, BedrockModelCatalogResponse } from '../types';
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { cache: 'no-store' });
@@ -24,5 +24,21 @@ export function useBedrockModels(region: string) {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
+  });
+}
+
+export function useBedrockActiveChecks(region: string, providers: string[], enabled: boolean) {
+  const sortedProviders = [...providers].sort((a, b) => a.localeCompare(b));
+  const providersParam = sortedProviders.join(',');
+
+  return useQuery<BedrockModelActiveCheckResponse>({
+    queryKey: ['bedrock-active-models', region, providersParam],
+    queryFn: () => fetchJson(
+      `/api/bedrock/active-models?region=${encodeURIComponent(region)}&providers=${encodeURIComponent(providersParam)}`,
+    ),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+    enabled,
   });
 }

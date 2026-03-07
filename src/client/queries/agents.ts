@@ -53,6 +53,9 @@ export function useUpdateAgent() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agents'] });
+      qc.invalidateQueries({ queryKey: ['agentUsage'] });
+      qc.invalidateQueries({ queryKey: ['allAgentUsages'] });
+      qc.invalidateQueries({ queryKey: ['teams'] });
     },
   });
 }
@@ -128,6 +131,11 @@ export type AgentUsage = {
   tokensAllTime: number;
   inputTokens: number;
   outputTokens: number;
+  source?: string;
+  activityEventCount?: number;
+  hasActivity?: boolean;
+  estimatedInputCostPer1M?: number;
+  estimatedOutputCostPer1M?: number;
 };
 
 export function useAllAgentUsages(agentIds: string[]) {

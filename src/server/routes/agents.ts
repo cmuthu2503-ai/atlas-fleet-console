@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client.js';
-import { agents, tasks } from '../db/schema.js';
-import { eq, and, sql, or, inArray } from 'drizzle-orm';
+import { agents, tasks, delegationSteps, userStories, bugs, storyHistory } from '../db/schema.js';
+import { eq, and, or, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { v4 as uuid } from 'uuid';
 
@@ -22,6 +22,43 @@ const SPECIALIZATION_NAMES: Record<string, string[]> = {
   'Data Architecture': ['Schema', 'Model', 'Catalog', 'Lineage', 'Govern'],
   'Technology Architecture': ['Stack', 'Cloud', 'Infra', 'Fabric', 'Core'],
 };
+
+type UsageContribution = {
+  at: number;
+  input: number;
+  output: number;
+};
+
+function normalizeModel(model?: string | null) {
+  return (model || '').toLowerCase();
+}
+
+function getModelRates(model?: string | null) {
+  const normalized = normalizeModel(model);
+
+  if (normalized.includes('opus')) return { input: 15, output: 75 };
+  if (normalized.includes('sonnet')) return { input: 3, output: 15 };
+  if (normalized.includes('haiku')) return { input: 0.8, output: 4 };
+  if (normalized.includes('nova')) return { input: 0.8, output: 3 };
+  if (normalized.includes('kimi')) return { input: 1, output: 5 };
+  if (normalized.includes('deepseek')) return { input: 0.5, output: 2 };
+  if (normalized.includes('mistral') || normalized.includes('devstral')) return { input: 0.4, output: 1.5 };
+  if (normalized.includes('llama')) return { input: 0.35, output: 1.2 };
+  return { input: 1.5, output: 7 };
+}
+
+function pushContribution(contributions: UsageContribution[], at: number | null | undefined, input: number, output: number) {
+  if (!at) return;
+  contributions.push({ at, input, output });
+}
+
+function sumUsage(contributions: UsageContribution[]) {
+  return contributions.reduce((acc, contribution) => {
+    acc.input += contribution.input;
+    acc.output += contribution.output;
+    return acc;
+  }, { input: 0, output: 0 });
+}
 
 // GET /api/fleet/agents
 app.get('/', async (c) => {
@@ -246,38 +283,143 @@ app.get('/:id/usage', async (c) => {
     const existing = await db.select().from(agents).where(or(eq(agents.id, id), eq(agents.agentId, id)));
     if (existing.length === 0) return c.json({ error: 'Agent not found' }, 404);
     const agent = existing[0]!;
+    const [agentTasks, agentDelegations, assignedStories, relatedBugs, historyEntries] = await Promise.all([
+      db.select().from(tasks).where(
+        or(eq(tasks.assignedAgentId, agent.id), eq(tasks.createdByAgentId, agent.id))
+      ),
+      db.select().from(delegationSteps).where(
+        or(eq(delegationSteps.fromAgentId, agent.id), eq(delegationSteps.toAgentId, agent.id))
+      ),
+      db.select().from(userStories).where(eq(userStories.assignedTo, agent.id)),
+      db.select().from(bugs).where(
+        or(eq(bugs.foundBy, agent.id), eq(bugs.assignedTo, agent.id))
+      ),
+      db.select().from(storyHistory),
+    ]);
 
-    // Count tasks to derive simulated usage metrics
-    const agentTasks = await db.select().from(tasks).where(
-      or(eq(tasks.assignedAgentId, agent.id), eq(tasks.createdByAgentId, agent.id))
-    );
-    const completedTasks = agentTasks.filter(t => t.status === 'completed').length;
+    const contributions: UsageContribution[] = [];
+    const completedTasks = agentTasks.filter(task => task.status === 'completed').length;
     const totalTasks = agentTasks.length;
+    const normalizedAgentNames = new Set([agent.name.toLowerCase(), agent.agentId.toLowerCase()]);
 
-    // Simulated token usage based on task activity and model
-    const baseTokens = agent.status === 'disabled' ? 0 : 1000;
-    const taskTokens = completedTasks * 12500 + (totalTasks - completedTasks) * 4200;
-    const inputTokens = baseTokens + taskTokens;
-    const outputTokens = Math.round(inputTokens * 0.35);
+    for (const task of agentTasks) {
+      if (task.createdByAgentId === agent.id) {
+        pushContribution(contributions, task.createdAt, 180, 40);
+      }
+
+      if (task.assignedAgentId === agent.id) {
+        const taskStatusWeights: Record<string, { input: number; output: number }> = {
+          pending: { input: 220, output: 60 },
+          delegated: { input: 260, output: 90 },
+          in_progress: { input: 600, output: 180 },
+          completed: { input: 820, output: 260 },
+          failed: { input: 520, output: 140 },
+        };
+        const weights = taskStatusWeights[task.status] ?? { input: 260, output: 80 };
+        pushContribution(contributions, task.updatedAt ?? task.createdAt, weights.input, weights.output);
+
+        if (task.completedAt) {
+          pushContribution(contributions, task.completedAt, 260, 320);
+        }
+      }
+    }
+
+    for (const step of agentDelegations) {
+      const fromAgentWeights: Record<string, { input: number; output: number }> = {
+        assign: { input: 160, output: 45 },
+        delegate: { input: 170, output: 55 },
+        review: { input: 120, output: 55 },
+        approve: { input: 110, output: 60 },
+        reject: { input: 140, output: 50 },
+        complete: { input: 90, output: 80 },
+      };
+      const toAgentWeights: Record<string, { input: number; output: number }> = {
+        assign: { input: 220, output: 60 },
+        delegate: { input: 230, output: 70 },
+        review: { input: 150, output: 60 },
+        approve: { input: 120, output: 50 },
+        reject: { input: 130, output: 40 },
+        complete: { input: 80, output: 70 },
+      };
+
+      if (step.fromAgentId === agent.id) {
+        const weights = fromAgentWeights[step.action] ?? { input: 120, output: 45 };
+        pushContribution(contributions, step.createdAt, weights.input, weights.output);
+        if (step.completedAt) {
+          pushContribution(contributions, step.completedAt, Math.round(weights.input * 0.35), Math.round(weights.output * 1.2));
+        }
+      }
+
+      if (step.toAgentId === agent.id) {
+        const weights = toAgentWeights[step.action] ?? { input: 140, output: 55 };
+        pushContribution(contributions, step.createdAt, weights.input, weights.output);
+        if (step.completedAt) {
+          pushContribution(contributions, step.completedAt, Math.round(weights.input * 0.3), Math.round(weights.output * 1.1));
+        }
+      }
+    }
+
+    for (const story of assignedStories) {
+      const storyStatusWeights: Record<string, { input: number; output: number }> = {
+        backlog: { input: 120, output: 30 },
+        created: { input: 160, output: 50 },
+        in_progress: { input: 420, output: 120 },
+        code_review: { input: 220, output: 90 },
+        qa_testing: { input: 200, output: 80 },
+        bug_fix: { input: 260, output: 120 },
+        ready_to_deploy: { input: 160, output: 60 },
+        done: { input: 280, output: 140 },
+      };
+      const weights = storyStatusWeights[story.status] ?? { input: 180, output: 60 };
+      const bugPenalty = Math.max(0, story.bugLoopCount) * 45;
+
+      pushContribution(contributions, story.updatedAt ?? story.createdAt, weights.input + bugPenalty, weights.output + Math.round(bugPenalty * 0.6));
+
+      if (story.completedAt) {
+        pushContribution(contributions, story.completedAt, 120, 180);
+      }
+    }
+
+    for (const bug of relatedBugs) {
+      if (bug.foundBy === agent.id) {
+        pushContribution(contributions, bug.createdAt, 90, 20);
+      }
+      if (bug.assignedTo === agent.id) {
+        pushContribution(contributions, bug.createdAt, 140, 40);
+        if (bug.resolvedAt) {
+          pushContribution(contributions, bug.resolvedAt, 80, 120);
+        }
+      }
+    }
+
+    for (const entry of historyEntries) {
+      if (!entry.changedBy) continue;
+      if (!normalizedAgentNames.has(entry.changedBy.toLowerCase())) continue;
+
+      pushContribution(
+        contributions,
+        entry.changedAt,
+        100,
+        entry.toStatus === 'done' ? 110 : entry.toStatus === 'bug_fix' ? 75 : 35,
+      );
+    }
+
+    const now = Date.now();
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const allTimeUsage = sumUsage(contributions);
+    const usage24h = sumUsage(contributions.filter(contribution => contribution.at >= dayAgo));
+    const usage7d = sumUsage(contributions.filter(contribution => contribution.at >= weekAgo));
+    const inputTokens = allTimeUsage.input;
+    const outputTokens = allTimeUsage.output;
     const totalTokens = inputTokens + outputTokens;
+    const tokens24h = usage24h.input + usage24h.output;
+    const tokens7d = usage7d.input + usage7d.output;
+    const tokensAllTime = totalTokens;
 
-    // Cost estimation based on model
-    const modelRates: Record<string, { input: number; output: number }> = {
-      'claude-opus': { input: 15, output: 75 },
-      'claude-opus-4.6': { input: 15, output: 75 },
-      'claude-sonnet': { input: 3, output: 15 },
-      'claude-sonnet-4.6': { input: 3, output: 15 },
-      'claude-sonnet-4-5-20250514': { input: 3, output: 15 },
-      'kimi-k2.5': { input: 1, output: 5 },
-      'deepseek-v3': { input: 0.5, output: 2 },
-    };
-    const rate = modelRates[agent.model || ''] || { input: 3, output: 15 };
+    const rate = getModelRates(agent.model);
     const cost = ((inputTokens / 1_000_000) * rate.input) + ((outputTokens / 1_000_000) * rate.output);
-
-    // Derive time-window token breakdowns with realistic mock data
-    const tokens24h = inputTokens + outputTokens;
-    const tokens7d = Math.round(tokens24h * 5.7);
-    const tokensAllTime = Math.round(tokens7d * 7.4);
+    const hasActivity = contributions.length > 0;
 
     return c.json({
       data: {
@@ -291,6 +433,11 @@ app.get('/:id/usage', async (c) => {
         cost: Math.round(cost * 10000) / 10000,
         taskCount: totalTasks,
         completedTaskCount: completedTasks,
+        activityEventCount: contributions.length,
+        hasActivity,
+        estimatedInputCostPer1M: rate.input,
+        estimatedOutputCostPer1M: rate.output,
+        source: 'local-operational-rollup',
       }
     });
   } catch (e: any) {
