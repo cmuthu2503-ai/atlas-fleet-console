@@ -40,6 +40,8 @@ type LiveStoryRow = {
   status: string;
   priority: string | null;
   team: string | null;
+  origin_advisory_task_id: string | null;
+  origin_advisory_title: string | null;
   updated_at: number | null;
 };
 
@@ -70,6 +72,7 @@ function buildLiveBoardResponse() {
     const rows = liveDb
       .prepare(`
         SELECT id, title, description, assigned_to, status, priority, team, updated_at
+             , origin_advisory_task_id, origin_advisory_title
         FROM user_stories
         ORDER BY updated_at DESC
       `)
@@ -83,6 +86,8 @@ function buildLiveBoardResponse() {
       status: row.status,
       priority: priorityToBoardPriority(row.priority),
       team: row.team,
+      originAdvisoryTaskId: row.origin_advisory_task_id,
+      originAdvisoryTitle: row.origin_advisory_title,
       updatedAt: row.updated_at,
     }));
 
