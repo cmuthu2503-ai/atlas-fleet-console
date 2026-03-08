@@ -8,13 +8,16 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       AWS_PROFILE: ${AWS_PROFILE:-default}
       AWS_SDK_LOAD_CONFIG: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      LIVE_JIRA_DB_PATH: /host-openclaw/workspace-jira/memory.db
     ports:
       - "3590:3590"
     volumes:
       - ./data:/app/data
+      - ${HOME}/.openclaw:/host-openclaw:ro
       - ${HOME}/.aws:/root/.aws:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3590/api/health"]
